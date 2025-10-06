@@ -66,6 +66,30 @@ export function useTaskManager() {
     }
   }, [tasks, session, sortMode]);
   
+  const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>) => {
+    const taskToAdd = {
+      ...newTask,
+      id: crypto.randomUUID(),
+      listDate: today,
+      isCarryover: false,
+      status: 'todo' as const,
+      createdAt: Date.now(),
+    };
+
+    setTasks(prev => [...prev, taskToAdd]);
+    
+    try {
+      const todayRef = doc(db, 'lists', today);
+      await updateDoc(todayRef, {
+        tasks: arrayUnion(taskToAdd)
+      });
+    } catch (error) {
+      console.error("Error adding task:", error);
+      toast({ title: "Error", description: "Failed to save new task.", variant: "destructive" });
+      setTasks(prev => prev.filter(p => p.id !== taskToAdd.id));
+    }
+  }, [today, toast]);
+
   const addTasks = useCallback(async (newTasks: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt'>[]) => {
     const tasksToAdd = newTasks.map(t => ({
       ...t,
@@ -197,6 +221,7 @@ export function useTaskManager() {
     setSession,
     sortMode,
     setSortMode,
+    addTask,
     addTasks,
     updateTask,
     deleteTask,

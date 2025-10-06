@@ -1,6 +1,7 @@
 'use client';
-
+import { useState, useEffect } from 'react';
 import type { Session, SortMode, EnergyLevel } from '@/lib/types';
+import { format } from 'date-fns';
 import {
   Select,
   SelectContent,
@@ -24,21 +25,33 @@ export function Header({
   sortMode,
   onSortModeChange,
 }: HeaderProps) {
+  const [currentDate, setCurrentDate] = useState({ day: '', date: '' });
+
+  useEffect(() => {
+    const now = new Date();
+    setCurrentDate({
+      day: format(now, 'E'),
+      date: format(now, 'LLL d'),
+    });
+  }, []);
+
   return (
-    <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <h1 className="text-3xl font-bold text-foreground font-headline tracking-tight">
-        Pick For Me
-      </h1>
-      <div className="flex items-center gap-4 sm:gap-6 w-full sm:w-auto">
-        <div className="flex-1 sm:flex-initial">
-          <Label className="text-sm text-muted-foreground mb-2 block">
+    <header className="flex flex-col items-center gap-6">
+      <div className="text-center">
+        <p className="text-5xl font-bold text-gray-800 uppercase tracking-widest">{currentDate.day}</p>
+        <p className="text-4xl text-gray-400 uppercase tracking-wider">{currentDate.date}</p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full">
+        <div className="flex-1">
+          <Label className="text-sm text-muted-foreground mb-2 block text-center sm:text-left">
             How's your energy?
           </Label>
           <RadioGroup
             defaultValue="med"
             value={session.energy}
             onValueChange={(value: EnergyLevel) => onEnergyChange(value)}
-            className="flex items-center space-x-4"
+            className="flex items-center justify-center sm:justify-start space-x-4"
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="low" id="low" />
@@ -54,12 +67,12 @@ export function Header({
             </div>
           </RadioGroup>
         </div>
-        <div className="flex-1 sm:flex-initial">
-          <Label className="text-sm text-muted-foreground mb-2 block">
+        <div className="w-full sm:w-auto sm:flex-1">
+          <Label className="text-sm text-muted-foreground mb-2 block text-center sm:text-right">
             Sort by
           </Label>
           <Select value={sortMode} onValueChange={(v: SortMode) => onSortModeChange(v)}>
-            <SelectTrigger className="w-full sm:w-[150px]">
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>

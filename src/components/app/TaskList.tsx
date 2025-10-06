@@ -5,11 +5,12 @@ import { TaskItem } from './TaskItem';
 
 interface TaskListProps {
   tasks: Task[];
+  firstTaskId?: string;
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
 }
 
-export function TaskList({ tasks, onUpdateTask, onDeleteTask }: TaskListProps) {
+export function TaskList({ tasks, firstTaskId, onUpdateTask, onDeleteTask }: TaskListProps) {
   if (tasks.length === 0) {
     return null;
   }
@@ -20,6 +21,7 @@ export function TaskList({ tasks, onUpdateTask, onDeleteTask }: TaskListProps) {
         <TaskItem
           key={task.id}
           task={task}
+          isFirst={task.id === firstTaskId}
           onUpdateTask={onUpdateTask}
           onDeleteTask={onDeleteTask}
         />

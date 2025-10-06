@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 
 interface TaskItemProps {
   task: Task;
+  isFirst: boolean;
   onUpdateTask: (id: string, updates: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
 }
@@ -29,7 +30,7 @@ const effortColors: Record<Effort, string> = {
   L: 'bg-orange-100 text-orange-800',
 };
 
-export function TaskItem({ task, onUpdateTask, onDeleteTask }: TaskItemProps) {
+export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
   
@@ -58,7 +59,8 @@ export function TaskItem({ task, onUpdateTask, onDeleteTask }: TaskItemProps) {
     <Card
       className={cn(
         'shadow-sm transition-all duration-300',
-        task.status === 'done' ? 'bg-secondary' : 'bg-card'
+        task.status === 'done' ? 'bg-secondary' : 'bg-card',
+        isFirst && task.status === 'todo' && 'border-primary border-2'
       )}
     >
       <CardContent className="p-3 flex items-center gap-3">
@@ -85,7 +87,8 @@ export function TaskItem({ task, onUpdateTask, onDeleteTask }: TaskItemProps) {
                 'font-medium transition-colors',
                 task.status === 'done'
                   ? 'text-muted-foreground line-through'
-                  : 'text-card-foreground'
+                  : 'text-card-foreground',
+                isFirst && task.status === 'todo' && 'text-lg'
               )}
             >
               {task.title}
