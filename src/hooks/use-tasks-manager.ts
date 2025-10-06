@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, Firestore } from 'firebase/firestore';
-import { getDb } from '@/lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, writeBatch, Timestamp, FieldValue } from 'firebase/firestore';
+import { useFirebase, useUser, useMemoFirebase } from '@/firebase';
 import { Task, Session, SortMode, Effort } from '@/lib/types';
 import { getToday } from '@/lib/utils';
 import { getAiTaskEnhancements } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, differenceInDays } from 'date-fns';
+import { deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+
 
 type AiData = {
   effortSuggestions: { id: string; effort: Effort }[];
@@ -15,55 +17,71 @@ type AiData = {
 };
 
 export function useTaskManager() {
+  const { firestore } = useFirebase();
+  const { user, isUserLoading } = useUser();
+  const { toast } = useToast();
+  
   const [tasks, setTasks] = useState<Task[]>([]);
   const [carryoverTasks, setCarryoverTasks] = useState<Task[]>([]);
   const [session, setSession] = useState<Session>({ energy: 'med', sessionQuickWinsCompleted: 0 });
   const [sortMode, setSortMode] = useState<SortMode>('ai');
   const [loading, setLoading] = useState(true);
   const [aiData, setAiData] = useState<AiData>({ effortSuggestions: [], topReasons: [] });
-  const [db, setDb] = useState<Firestore | null>(null);
-  const { toast } = useToast();
 
   const today = getToday();
   const yesterday = getToday(subDays(new Date(), 1));
 
-  useEffect(() => {
-    const initDb = async () => {
-      const firestore = await getDb();
-      setDb(firestore);
-    };
-    initDb();
-  }, []);
+  const userListsCollection = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'users', user.uid, 'lists');
+  }, [firestore, user]);
+
 
   useEffect(() => {
-    if (!db) return;
+    if (isUserLoading || !firestore || !userListsCollection) {
+      setLoading(true);
+      return;
+    };
     
     const loadData = async () => {
       setLoading(true);
       try {
-        const todayRef = doc(db, 'lists', today);
-        const yesterdayRef = doc(db, 'lists', yesterday);
+        const todayRef = doc(userListsCollection, today);
+        const yesterdayRef = doc(userListsCollection, yesterday);
 
         const [todaySnap, yesterdaySnap] = await Promise.all([getDoc(todayRef), getDoc(yesterdayRef)]);
-
+        
+        let todaysTasks: Task[] = [];
+        if (todaySnap.exists()) {
+          const todayData = todaySnap.data();
+          todaysTasks = (todayData.tasks || []).map((t: any) => ({
+            ...t,
+            createdAt: t.createdAt instanceof Timestamp ? t.createdAt.toMillis() : t.createdAt,
+            completedAt: t.completedAt instanceof Timestamp ? t.completedAt.toMillis() : t.completedAt,
+          }));
+        } else {
+          // Create today's list if it doesn't exist
+          setDocumentNonBlocking(todayRef, { date: today, tasks: [] }, { merge: false });
+        }
+        
         if (yesterdaySnap.exists()) {
           const yesterdayData = yesterdaySnap.data();
-          const carryovers = (yesterdayData.tasks || []).filter((task: Task) => task.status === 'todo').map((task: Task) => ({ ...task, isCarryover: true }));
+          const carryovers = (yesterdayData.tasks || [])
+            .filter((task: Task) => task.status === 'todo')
+            .map((task: any) => ({ 
+              ...task, 
+              isCarryover: true,
+              createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
+              completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : task.completedAt,
+            }))
+            // Filter out tasks already carried over to today
+            .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
+            
           setCarryoverTasks(carryovers);
         }
 
-        if (todaySnap.exists()) {
-          const todayData = todaySnap.data();
-          // Ensure createdAt is present, default to listDate if not
-          const loadedTasks = (todayData.tasks || []).map((t: Task) => ({
-            ...t,
-            createdAt: t.createdAt || new Date(t.listDate).getTime()
-          }));
-          setTasks(loadedTasks);
-        } else {
-          await setDoc(todayRef, { date: today, tasks: [] });
-          setTasks([]);
-        }
+        setTasks(todaysTasks);
+
       } catch (error) {
         console.error("Error loading data:", error);
         toast({ title: "Error", description: "Could not load tasks. Please try again later.", variant: "destructive" });
@@ -71,127 +89,95 @@ export function useTaskManager() {
         setLoading(false);
       }
     };
+
     loadData();
-  }, [db, today, yesterday, toast]);
+  }, [isUserLoading, firestore, userListsCollection, today, yesterday, toast]);
   
-  const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>) => {
-    if (!db) return;
+  const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => {
+    if (!userListsCollection) return;
+
+    const now = Date.now();
     const taskToAdd: Task = {
       ...newTask,
       id: crypto.randomUUID(),
       listDate: today,
       isCarryover: false,
       status: 'todo' as const,
-      createdAt: Date.now(),
+      createdAt: now,
+      originDate: today
     };
 
     setTasks(prev => [...prev, taskToAdd]);
     
-    try {
-      const todayRef = doc(db, 'lists', today);
-      await updateDoc(todayRef, {
-        tasks: arrayUnion(taskToAdd)
-      });
-    } catch (error) {
-      console.error("Error adding task:", error);
-      toast({ title: "Error", description: "Failed to save new task.", variant: "destructive" });
-      setTasks(prev => prev.filter(p => p.id !== taskToAdd.id));
-    }
-  }, [db, today, toast]);
+    const todayRef = doc(userListsCollection, today);
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(taskToAdd) });
+  }, [userListsCollection, today]);
 
-  const addTasks = useCallback(async (newTasks: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>[]) => {
-    if (!db) return;
-    const tasksToAdd: Task[] = newTasks.map(t => ({
-      ...t,
-      id: crypto.randomUUID(),
-      listDate: today,
-      isCarryover: false,
-      status: 'todo' as const,
-      createdAt: Date.now(),
-    }));
-
-    setTasks(prev => [...prev, ...tasksToAdd]);
-    
-    try {
-      const todayRef = doc(db, 'lists', today);
-      await updateDoc(todayRef, {
-        tasks: arrayUnion(...tasksToAdd)
-      });
-    } catch (error) {
-      console.error("Error adding tasks:", error);
-      toast({ title: "Error", description: "Failed to save new tasks.", variant: "destructive" });
-      setTasks(prev => prev.filter(p => !tasksToAdd.some(n => n.id === p.id)));
-    }
-  }, [db, today, toast]);
-  
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
-    if (!db) return;
+    if (!userListsCollection) return;
+
     const originalTasks = tasks;
-    const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates } : t);
+    const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates, ...(updates.status === 'done' && !t.completedAt && { completedAt: Date.now() }) } : t);
     setTasks(newTasks);
 
-    try {
-      const todayRef = doc(db, 'lists', today);
-      // Using setDoc to overwrite the entire array, which is simpler for updates.
-      await setDoc(todayRef, { tasks: newTasks, date: today }, { merge: true });
-    } catch (error) {
-      console.error("Error updating task:", error);
-      toast({ title: "Error", description: "Failed to update task.", variant: "destructive" });
-      setTasks(originalTasks);
-    }
-  }, [db, tasks, today, toast]);
+    const todayRef = doc(userListsCollection, today);
+    setDocumentNonBlocking(todayRef, { tasks: newTasks, date: today }, { merge: true });
+  }, [userListsCollection, tasks, today]);
 
   const deleteTask = useCallback(async (id: string) => {
-    if (!db) return;
+    if (!userListsCollection) return;
     const taskToDelete = tasks.find(t => t.id === id);
     if (!taskToDelete) return;
 
     const originalTasks = tasks;
     setTasks(prev => prev.filter(t => t.id !== id));
 
-    try {
-      const todayRef = doc(db, 'lists', today);
-      await updateDoc(todayRef, {
-        tasks: arrayRemove(taskToDelete)
-      });
-    } catch (error) {
-        console.error("Error deleting task:", error);
-        toast({ title: "Error", description: "Failed to delete task.", variant: "destructive" });
-        setTasks(originalTasks);
-    }
-  }, [db, tasks, today, toast]);
+    const todayRef = doc(userListsCollection, today);
+    updateDocumentNonBlocking(todayRef, { tasks: arrayRemove(taskToDelete) });
+  }, [userListsCollection, tasks, today]);
 
   const addCarryoverToToday = useCallback(async (id: string) => {
-    if (!db) return;
-    const task = carryoverTasks.find(t => t.id === id);
-    if (!task) return;
+    if (!userListsCollection || !firestore) return;
+    const taskToCarryOver = carryoverTasks.find(t => t.id === id);
+    if (!taskToCarryOver) return;
 
-    // Preserve original creation date on carryover
-    const newTask = { ...task, listDate: today, isCarryover: true }; // isCarryover remains true for staleness check
+    const newTask: Task = { 
+      ...taskToCarryOver, 
+      listDate: today, 
+      isCarryover: true,
+      originDate: taskToCarryOver.originDate || taskToCarryOver.listDate
+    }; 
     
     setCarryoverTasks(prev => prev.filter(t => t.id !== id));
     setTasks(prev => [...prev, newTask]);
 
-    try {
-        const todayRef = doc(db, 'lists', today);
-        await updateDoc(todayRef, {
-            tasks: arrayUnion(newTask)
-        });
-    } catch (error) {
-        console.error("Error adding carryover task:", error);
-        toast({ title: "Error", description: "Could not add task from yesterday.", variant: "destructive" });
-        setCarryoverTasks(prev => [...prev, task]);
-        setTasks(prev => prev.filter(t => t.id !== newTask.id));
-    }
-  }, [db, carryoverTasks, today, toast]);
+    const batch = writeBatch(firestore);
+
+    // Remove from yesterday
+    const yesterdayRef = doc(userListsCollection, taskToCarryOver.listDate);
+    batch.update(yesterdayRef, { tasks: arrayRemove(taskToCarryOver) });
+
+    // Add to today
+    const todayRef = doc(userListsCollection, today);
+    batch.update(todayRef, { tasks: arrayUnion(newTask) });
+    
+    batch.commit().catch(error => {
+      console.error("Error carrying over task:", error);
+      toast({ title: "Error", description: "Could not add task from yesterday.", variant: "destructive" });
+      setCarryoverTasks(prev => [...prev, taskToCarryOver]);
+      setTasks(prev => prev.filter(t => t.id !== newTask.id));
+    });
+  }, [userListsCollection, firestore, carryoverTasks, today, toast]);
+
 
   const getTaskScore = useCallback((task: Task, energy: Session['energy']) => {
     const effortEaseMap: Record<Effort, number> = { XS: 1, S: 0.75, M: 0.3, L: 0.1 };
     
     const importanceScore = task.importance === '!!' ? 1 : 0;
-    const effortEaseScore = task.effort ? effortEaseMap[task.effort] : 0; // Default to 0 if no effort
+    const effortEaseScore = task.effort ? effortEaseMap[task.effort] : 0;
     
-    const isStale = task.isCarryover && differenceInDays(new Date(), new Date(task.createdAt)) >= 2;
+    const stalenessDays = differenceInDays(new Date(), new Date(task.originDate || task.createdAt));
+    const isStale = stalenessDays >= 2;
     const stalenessNudge = isStale ? 0.2 : 0;
 
     let energyFit = 0;
@@ -209,7 +195,7 @@ export function useTaskManager() {
 
   const sortedTasks = useMemo(() => {
     const todoTasks = tasks.filter(t => t.status === 'todo');
-    const doneTasks = tasks.filter(t => t.status === 'done').sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)); // Show most recently completed first
+    const doneTasks = tasks.filter(t => t.status === 'done').sort((a,b) => (b.completedAt || 0) - (a.completedAt || 0));
     
     let sortedTodoTasks: Task[];
 
@@ -219,7 +205,8 @@ export function useTaskManager() {
         sortedTodoTasks = [...todoTasks].sort((a, b) => {
           const effortA = effortOrder.indexOf(a.effort);
           const effortB = effortOrder.indexOf(b.effort);
-          return effortA - effortB;
+          if (effortA !== effortB) return effortA - effortB;
+          return (a.createdAt || 0) - (b.createdAt || 0);
         });
         break;
       case 'ai':
@@ -227,7 +214,6 @@ export function useTaskManager() {
           const scoreA = getTaskScore(a, session.energy);
           const scoreB = getTaskScore(b, session.energy);
           if (scoreB !== scoreA) return scoreB - scoreA;
-          // Tie-breakers
           if (a.title.length !== b.title.length) return a.title.length - b.title.length;
           return a.title.localeCompare(b.title);
         });
@@ -245,7 +231,7 @@ export function useTaskManager() {
   }, [sortedTasks]);
 
   useEffect(() => {
-    if (sortMode !== 'ai' || loading || !db) return;
+    if (sortMode !== 'ai' || loading || !userListsCollection) return;
 
     const todoTasks = tasks.filter(t => t.status === 'todo');
     if (todoTasks.length === 0) {
@@ -254,7 +240,6 @@ export function useTaskManager() {
     }
 
     const runAiEnhancement = async () => {
-      // 1. Get new suggestions if needed
       const tasksNeedingEffort = todoTasks.filter(t => !t.effort);
       const topTask = firstTask;
 
@@ -265,16 +250,15 @@ export function useTaskManager() {
             title: t.title,
             effort: t.effort,
             importance: t.importance,
-            isStale: t.isCarryover && differenceInDays(new Date(), new Date(t.createdAt)) >= 2,
+            isStale: (differenceInDays(new Date(), new Date(t.originDate || t.createdAt))) >= 2,
           })),
           topTaskId: topTask?.id || '',
           session,
         };
 
         const result = await getAiTaskEnhancements(aiInput);
-        setAiData(result); // Store reasons
+        setAiData(result);
 
-        // 2. Apply effort suggestions
         if (result.effortSuggestions.length > 0) {
           const updatedTasks = tasks.map(task => {
             const suggestion = result.effortSuggestions.find(s => s.id === task.id);
@@ -284,23 +268,18 @@ export function useTaskManager() {
             return task;
           });
           
-          // Use a temporary state update for immediate UI feedback before DB write
           setTasks(updatedTasks); 
 
-          // Persist all updates at once
-          try {
-            const todayRef = doc(db, 'lists', today);
-            await setDoc(todayRef, { tasks: updatedTasks, date: today }, { merge: true });
-          } catch(error) {
-             console.error("Error saving effort suggestions:", error);
-             // Note: No rollback here to keep the UI consistent with the AI's suggestions.
-          }
+          const todayRef = doc(userListsCollection, today);
+          setDocumentNonBlocking(todayRef, { tasks: updatedTasks, date: today }, { merge: true });
         }
       }
     };
 
-    runAiEnhancement();
-  }, [sortMode, tasks, session, firstTask, loading, today, db]);
+    const timeoutId = setTimeout(runAiEnhancement, 500); // Debounce AI call
+    return () => clearTimeout(timeoutId);
+
+  }, [sortMode, tasks, session, firstTask, loading, userListsCollection, today]);
 
 
   return {
@@ -311,12 +290,11 @@ export function useTaskManager() {
     sortMode,
     setSortMode,
     addTask,
-    addTasks,
     updateTask,
     deleteTask,
     addCarryoverToToday,
-    loading,
+    loading: isUserLoading || loading,
     firstTask,
-    aiData, // Expose reasons and suggestions
+    aiData,
   };
 }

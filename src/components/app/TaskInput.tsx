@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 interface TaskInputProps {
-  onAddTask: (task: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>) => void;
+  onAddTask: (task: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => void;
 }
 
 const effortMap: { [key: string]: Effort } = {
