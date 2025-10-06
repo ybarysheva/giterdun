@@ -1,0 +1,218 @@
+{
+  "entities": {
+    "Task": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Task",
+      "type": "object",
+      "description": "Represents a single to-do task.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Task entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "The title or description of the task."
+        },
+        "effort": {
+          "type": "string",
+          "description": "An estimation of the effort required for the task (XS, S, M, L, or null).",
+          "format": "enum",
+          "items": {
+            "type": "string"
+          }
+        },
+        "importance": {
+          "type": "string",
+          "description": "An indicator of the task's importance ('!!' or null).",
+          "format": "enum",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the task ('todo' or 'done').",
+          "format": "enum",
+          "items": {
+            "type": "string"
+          }
+        },
+        "listDate": {
+          "type": "string",
+          "description": "The date the task belongs to (YYYY-MM-DD).",
+          "format": "date"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the task was created.",
+          "format": "date-time"
+        },
+        "completedAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the task was completed (if applicable).",
+          "format": "date-time"
+        },
+        "isCarryover": {
+          "type": "boolean",
+          "description": "Indicates whether the task is a carryover from a previous day."
+        },
+        "originDate": {
+          "type": "string",
+          "description": "The original date the task was created (YYYY-MM-DD), used for carryover tasks.",
+          "format": "date"
+        },
+        "listId": {
+          "type": "string",
+          "description": "Reference to List. (Relationship: List 1:N Task)"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status",
+        "listDate",
+        "createdAt",
+        "isCarryover",
+        "listId"
+      ]
+    },
+    "List": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "List",
+      "type": "object",
+      "description": "Represents a list of tasks for a specific date.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the List entity. Format is YYYY-MM-DD."
+        },
+        "date": {
+          "type": "string",
+          "description": "The date of the list (YYYY-MM-DD).",
+          "format": "date"
+        },
+        "tasks": {
+          "type": "array",
+          "description": "An array of Task IDs associated with this list.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "customOrder": {
+          "type": "array",
+          "description": "An array of Task IDs representing the custom order of tasks in the list.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N List)"
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "tasks",
+        "userId"
+      ]
+    },
+    "Session": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Session",
+      "type": "object",
+      "description": "Represents a user session with energy level and quick wins completed.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Session entity."
+        },
+        "energy": {
+          "type": "string",
+          "description": "The user's energy level during the session (low, med, or high).",
+          "format": "enum",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sessionQuickWinsCompleted": {
+          "type": "number",
+          "description": "The number of quick wins completed during the session."
+        },
+        "listId": {
+          "type": "string",
+          "description": "Reference to List. (Relationship: List 1:N Session)"
+        }
+      },
+      "required": [
+        "id",
+        "energy",
+        "sessionQuickWinsCompleted",
+        "listId"
+      ]
+    },
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity. This will be the Firebase UID."
+        }
+      },
+      "required": [
+        "id"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Root collection for users. Stores user-specific data. The 'userId' parameter corresponds to the Firebase Authentication UID.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/lists/{listId}",
+        "definition": {
+          "entityName": "List",
+          "schema": {
+            "$ref": "#/backend/entities/List"
+          },
+          "description": "Collection of lists for each user, segmented by date.  The 'listId' corresponds to the date (YYYY-MM-DD).",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The Firebase Authentication UID of the user."
+            },
+            {
+              "name": "listId",
+              "description": "The date of the list (YYYY-MM-DD)."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to ensure data isolation and efficient querying for a single-user to-do app. The core principle is path-based ownership under `/users/{userId}`. All data for a given user is stored under their unique user ID, simplifying security rules and ensuring that users can only access their own data. The structure is designed around storing lists of tasks for each day. A `List` document exists for each day with the date as the document ID.  This list contains the tasks for the day. This data is secured by Firebase Authentication with Anonymous Auth, scoping all data access to authenticated users only. This eliminates the need for complex authorization logic in the security rules.\n\n**Authorization Independence:** All data is nested under the `users/{userId}` collection, ensuring each user only has access to their respective data. This design avoids authorization dependencies as access control is based solely on the user ID present in the path. The use of Anonymous Auth ensures that a `uid` is always available to scope access.\n\n**QAPs (Rules are not Filters):**  The structure supports secure list operations since each user's data is isolated under their `uid`. This eliminates the need for filtering data based on user roles or permissions within the rules themselves. The design encourages flat collections under user paths, optimizing list views and queries within a user's context."
+  }
+}
