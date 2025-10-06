@@ -25,21 +25,20 @@ export function Header({
   sortMode,
   onSortModeChange,
 }: HeaderProps) {
-  const [currentDate, setCurrentDate] = useState({ day: '', date: '' });
+  const [currentDate, setCurrentDate] = useState('');
 
   useEffect(() => {
     const now = new Date();
-    setCurrentDate({
-      day: format(now, 'E'),
-      date: format(now, 'LLL d'),
-    });
+    setCurrentDate(format(now, 'E, LLL d'));
   }, []);
 
   return (
     <header className="flex flex-col items-center gap-6">
       <div className="text-center">
-        <p className="text-5xl font-bold text-gray-800 uppercase tracking-widest">{currentDate.day}</p>
-        <p className="text-4xl text-gray-400 uppercase tracking-wider">{currentDate.date}</p>
+        <p className="text-5xl font-bold uppercase tracking-wider">
+          <span className="text-foreground">{currentDate.split(',')[0]}</span>
+          <span className="text-muted-foreground">{currentDate.substring(currentDate.indexOf(','))}</span>
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 w-full">

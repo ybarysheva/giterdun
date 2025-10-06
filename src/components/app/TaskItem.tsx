@@ -84,11 +84,11 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
             <label
               htmlFor={`task-${task.id}`}
               className={cn(
-                'font-medium transition-colors',
+                'transition-colors',
                 task.status === 'done'
                   ? 'text-muted-foreground line-through'
                   : 'text-card-foreground',
-                isFirst && task.status === 'todo' && 'text-lg'
+                isFirst && task.status === 'todo' ? 'text-lg font-bold' : 'font-normal'
               )}
             >
               {task.title}
