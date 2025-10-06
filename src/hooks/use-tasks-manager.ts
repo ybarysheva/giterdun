@@ -72,7 +72,7 @@ export function useTaskManager() {
               ...task, 
               isCarryover: true,
               createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
-              completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : task.completedAt,
+              completedAt: t.completedAt instanceof Timestamp ? t.completedAt.toMillis() : t.completedAt,
             }))
             // Filter out tasks already carried over to today
             .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
@@ -82,16 +82,20 @@ export function useTaskManager() {
 
         setTasks(todaysTasks);
 
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error loading data:", error);
-        toast({ title: "Error", description: "Could not load tasks. Please try again later.", variant: "destructive" });
+        if (error.name === 'FirebaseError' && error.code === 'permission-denied') {
+          toast({ title: "Connecting...", description: "We’re still connecting—please try again in a moment.", variant: "destructive" });
+        } else {
+          toast({ title: "Error", description: "Could not load tasks. Please try again later.", variant: "destructive" });
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadData();
-  }, [isUserLoading, firestore, userListsCollection, today, yesterday, toast]);
+  }, [isUserLoading, firestore, user, userListsCollection, today, yesterday, toast]);
   
   const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => {
     if (!userListsCollection) return;
@@ -129,11 +133,13 @@ export function useTaskManager() {
     const taskToDelete = tasks.find(t => t.id === id);
     if (!taskToDelete) return;
 
-    const originalTasks = tasks;
     setTasks(prev => prev.filter(t => t.id !== id));
 
     const todayRef = doc(userListsCollection, today);
-    updateDocumentNonBlocking(todayRef, { tasks: arrayRemove(taskToDelete) });
+    const updatedTasks = tasks.filter(t => t.id !== id);
+    
+    // Instead of arrayRemove (which needs the exact object), we overwrite with the filtered list.
+    setDocumentNonBlocking(todayRef, { tasks: updatedTasks }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
   const addCarryoverToToday = useCallback(async (id: string) => {
@@ -150,23 +156,10 @@ export function useTaskManager() {
     
     setCarryoverTasks(prev => prev.filter(t => t.id !== id));
     setTasks(prev => [...prev, newTask]);
-
-    const batch = writeBatch(firestore);
-
-    // Remove from yesterday
-    const yesterdayRef = doc(userListsCollection, taskToCarryOver.listDate);
-    batch.update(yesterdayRef, { tasks: arrayRemove(taskToCarryOver) });
-
-    // Add to today
-    const todayRef = doc(userListsCollection, today);
-    batch.update(todayRef, { tasks: arrayUnion(newTask) });
     
-    batch.commit().catch(error => {
-      console.error("Error carrying over task:", error);
-      toast({ title: "Error", description: "Could not add task from yesterday.", variant: "destructive" });
-      setCarryoverTasks(prev => [...prev, taskToCarryOver]);
-      setTasks(prev => prev.filter(t => t.id !== newTask.id));
-    });
+    const todayRef = doc(userListsCollection, today);
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(newTask) });
+
   }, [userListsCollection, firestore, carryoverTasks, today, toast]);
 
 

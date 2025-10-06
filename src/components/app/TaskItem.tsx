@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 interface TaskItemProps {
   task: Task;
   isFirst: boolean;
-  onUpdateTask: (id: string, updates: Partial<Task>) => void;
+  onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   onDeleteTask: (id: string) => void;
 }
 

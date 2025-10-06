@@ -8,7 +8,7 @@ import { Info } from 'lucide-react';
 interface TaskListProps {
   tasks: Task[];
   firstTaskId?: string;
-  onUpdateTask: (id: string, updates: Partial<Task>) => void;
+  onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   onDeleteTask: (id: string) => void;
   aiReasons?: string[];
 }
