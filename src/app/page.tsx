@@ -21,6 +21,7 @@ export default function Home() {
     addCarryoverToToday,
     loading,
     firstTask,
+    aiData,
   } = useTaskManager();
 
   return (
@@ -45,6 +46,7 @@ export default function Home() {
             firstTaskId={firstTask?.id}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
+            aiReasons={sortMode === 'ai' ? aiData.topReasons : []}
           />
         )}
         

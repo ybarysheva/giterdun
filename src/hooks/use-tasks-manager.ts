@@ -5,9 +5,14 @@ import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from 'firebas
 import { db } from '@/lib/firebase';
 import { Task, Session, SortMode, Effort } from '@/lib/types';
 import { getToday } from '@/lib/utils';
-import { getAiSortedTaskIds } from '@/app/actions';
+import { getAiTaskEnhancements } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
-import { subDays } from 'date-fns';
+import { subDays, differenceInDays } from 'date-fns';
+
+type AiData = {
+  effortSuggestions: { id: string; effort: Effort }[];
+  topReasons: string[];
+};
 
 export function useTaskManager() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -15,7 +20,7 @@ export function useTaskManager() {
   const [session, setSession] = useState<Session>({ energy: 'med', sessionQuickWinsCompleted: 0 });
   const [sortMode, setSortMode] = useState<SortMode>('ai');
   const [loading, setLoading] = useState(true);
-  const [aiSortedIds, setAiSortedIds] = useState<string[]>([]);
+  const [aiData, setAiData] = useState<AiData>({ effortSuggestions: [], topReasons: [] });
   const { toast } = useToast();
 
   const today = getToday();
@@ -38,7 +43,12 @@ export function useTaskManager() {
 
         if (todaySnap.exists()) {
           const todayData = todaySnap.data();
-          setTasks(todayData.tasks || []);
+          // Ensure createdAt is present, default to listDate if not
+          const loadedTasks = (todayData.tasks || []).map((t: Task) => ({
+            ...t,
+            createdAt: t.createdAt || new Date(t.listDate).getTime()
+          }));
+          setTasks(loadedTasks);
         } else {
           await setDoc(todayRef, { date: today, tasks: [] });
           setTasks([]);
@@ -52,22 +62,9 @@ export function useTaskManager() {
     };
     loadData();
   }, [today, yesterday, toast]);
-
-  useEffect(() => {
-    if (sortMode === 'ai' && tasks.length > 0) {
-      const runAiSort = async () => {
-        const sortedIds = await getAiSortedTaskIds({
-          tasks: tasks.filter(t => t.status === 'todo'),
-          session,
-        });
-        setAiSortedIds(sortedIds);
-      };
-      runAiSort();
-    }
-  }, [tasks, session, sortMode]);
   
   const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>) => {
-    const taskToAdd = {
+    const taskToAdd: Task = {
       ...newTask,
       id: crypto.randomUUID(),
       listDate: today,
@@ -90,8 +87,8 @@ export function useTaskManager() {
     }
   }, [today, toast]);
 
-  const addTasks = useCallback(async (newTasks: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt'>[]) => {
-    const tasksToAdd = newTasks.map(t => ({
+  const addTasks = useCallback(async (newTasks: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>[]) => {
+    const tasksToAdd: Task[] = newTasks.map(t => ({
       ...t,
       id: crypto.randomUUID(),
       listDate: today,
@@ -121,7 +118,8 @@ export function useTaskManager() {
 
     try {
       const todayRef = doc(db, 'lists', today);
-      await setDoc(todayRef, { tasks: newTasks, date: today });
+      // Using setDoc to overwrite the entire array, which is simpler for updates.
+      await setDoc(todayRef, { tasks: newTasks, date: today }, { merge: true });
     } catch (error) {
       console.error("Error updating task:", error);
       toast({ title: "Error", description: "Failed to update task.", variant: "destructive" });
@@ -152,7 +150,8 @@ export function useTaskManager() {
     const task = carryoverTasks.find(t => t.id === id);
     if (!task) return;
 
-    const newTask = { ...task, listDate: today, isCarryover: false };
+    // Preserve original creation date on carryover
+    const newTask = { ...task, listDate: today, isCarryover: true }; // isCarryover remains true for staleness check
     
     setCarryoverTasks(prev => prev.filter(t => t.id !== id));
     setTasks(prev => [...prev, newTask]);
@@ -170,9 +169,32 @@ export function useTaskManager() {
     }
   }, [carryoverTasks, today, toast]);
 
+  const getTaskScore = useCallback((task: Task, energy: Session['energy']) => {
+    const effortEaseMap: Record<Effort, number> = { XS: 1, S: 0.75, M: 0.3, L: 0.1 };
+    
+    const importanceScore = task.importance === '!!' ? 1 : 0;
+    const effortEaseScore = task.effort ? effortEaseMap[task.effort] : 0; // Default to 0 if no effort
+    
+    const isStale = task.isCarryover && differenceInDays(new Date(), new Date(task.createdAt)) >= 2;
+    const stalenessNudge = isStale ? 0.2 : 0;
+
+    let energyFit = 0;
+    if (task.effort) {
+        if (energy === 'low') {
+            if (task.effort === 'XS' || task.effort === 'S') energyFit = 0.1;
+        } else if (energy === 'high') {
+            if (task.effort === 'XS' || task.effort === 'S') energyFit = -0.1;
+            if (task.effort === 'M' || task.effort === 'L') energyFit = 0.1;
+        }
+    }
+    
+    return (0.45 * importanceScore) + (0.35 * effortEaseScore) + (0.20 * stalenessNudge) + energyFit;
+  }, []);
+
   const sortedTasks = useMemo(() => {
     const todoTasks = tasks.filter(t => t.status === 'todo');
-    const doneTasks = tasks.filter(t => t.status === 'done').sort((a,b) => a.createdAt - b.createdAt);
+    const doneTasks = tasks.filter(t => t.status === 'done').sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)); // Show most recently completed first
+    
     let sortedTodoTasks: Task[];
 
     switch (sortMode) {
@@ -186,32 +208,83 @@ export function useTaskManager() {
         break;
       case 'ai':
         sortedTodoTasks = [...todoTasks].sort((a, b) => {
-          const indexA = aiSortedIds.indexOf(a.id);
-          const indexB = aiSortedIds.indexOf(b.id);
-          if (indexA === -1 && indexB === -1) return 0;
-          if (indexA === -1) return 1;
-          if (indexB === -1) return -1;
-          return indexA - indexB;
+          const scoreA = getTaskScore(a, session.energy);
+          const scoreB = getTaskScore(b, session.energy);
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          // Tie-breakers
+          if (a.title.length !== b.title.length) return a.title.length - b.title.length;
+          return a.title.localeCompare(b.title);
         });
         break;
       case 'custom':
       default:
-        sortedTodoTasks = [...todoTasks].sort((a,b) => a.createdAt - b.createdAt);
+        sortedTodoTasks = [...todoTasks].sort((a,b) => (a.createdAt || 0) - (b.createdAt || 0));
         break;
     }
     return [...sortedTodoTasks, ...doneTasks];
-  }, [tasks, sortMode, aiSortedIds]);
-
-  const progress = useMemo(() => {
-    const total = tasks.length;
-    const completed = tasks.filter(t => t.status === 'done').length;
-    const percentage = total > 0 ? (completed / total) * 100 : 0;
-    return { completed, total, percentage };
-  }, [tasks]);
+  }, [tasks, sortMode, session.energy, getTaskScore]);
 
   const firstTask = useMemo(() => {
     return sortedTasks.find(t => t.status === 'todo');
   }, [sortedTasks]);
+
+  useEffect(() => {
+    if (sortMode !== 'ai' || loading) return;
+
+    const todoTasks = tasks.filter(t => t.status === 'todo');
+    if (todoTasks.length === 0) {
+      setAiData({ effortSuggestions: [], topReasons: [] });
+      return;
+    }
+
+    const runAiEnhancement = async () => {
+      // 1. Get new suggestions if needed
+      const tasksNeedingEffort = todoTasks.filter(t => !t.effort);
+      const topTask = firstTask;
+
+      if (tasksNeedingEffort.length > 0 || topTask) {
+        const aiInput = {
+          tasks: todoTasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            effort: t.effort,
+            importance: t.importance,
+            isStale: t.isCarryover && differenceInDays(new Date(), new Date(t.createdAt)) >= 2,
+          })),
+          topTaskId: topTask?.id || '',
+          session,
+        };
+
+        const result = await getAiTaskEnhancements(aiInput);
+        setAiData(result); // Store reasons
+
+        // 2. Apply effort suggestions
+        if (result.effortSuggestions.length > 0) {
+          const updatedTasks = tasks.map(task => {
+            const suggestion = result.effortSuggestions.find(s => s.id === task.id);
+            if (suggestion && !task.effort) {
+              return { ...task, effort: suggestion.effort };
+            }
+            return task;
+          });
+          
+          // Use a temporary state update for immediate UI feedback before DB write
+          setTasks(updatedTasks); 
+
+          // Persist all updates at once
+          try {
+            const todayRef = doc(db, 'lists', today);
+            await setDoc(todayRef, { tasks: updatedTasks, date: today }, { merge: true });
+          } catch(error) {
+             console.error("Error saving effort suggestions:", error);
+             // Note: No rollback here to keep the UI consistent with the AI's suggestions.
+          }
+        }
+      }
+    };
+
+    runAiEnhancement();
+  }, [sortMode, tasks, session, firstTask, loading, today]);
 
 
   return {
@@ -227,7 +300,7 @@ export function useTaskManager() {
     deleteTask,
     addCarryoverToToday,
     loading,
-    progress,
     firstTask,
+    aiData, // Expose reasons and suggestions
   };
 }

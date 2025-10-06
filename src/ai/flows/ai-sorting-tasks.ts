@@ -1,83 +1,107 @@
 'use server';
 
 /**
- * @fileOverview AI-powered task sorting flow for the "Pick For Me" feature.
+ * @fileOverview AI-powered task enrichment flow for "Pick For Me".
  *
- * This file defines a Genkit flow that uses an LLM to analyze tasks and
- * prioritize them based on effort, importance, and freshness, tailoring
- * the sorting to the user's current energy level.
+ * This file defines a Genkit flow that uses an LLM to:
+ * 1. Suggest 'effort' ratings (XS, S, M, L) for tasks that don't have one.
+ * 2. Generate brief, context-aware reasons why a specific task was ranked as the top priority by the local sorting algorithm.
+ *
+ * The flow does NOT determine the task order; it only enriches the data provided by the app.
  *
  * @file
- * @exports aiSortingTasks
- * @exports AiSortingTasksInput
- * @exports AiSortingTasksOutput
+ * @exports aiEnhanceTasks
+ * @exports AiTaskEnhancementInput
+ * @exports AiTaskEnhancementOutput
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const TaskSchema = z.object({
   id: z.string(),
   title: z.string(),
-  effort: z.enum(['XS', 'S', 'M', 'L', null]).nullable(),
-  importance: z.enum(['!!', null]).nullable(),
-  status: z.enum(['todo', 'done']),
-  listDate: z.string(), // YYYY-MM-DD
-  isCarryover: z.boolean(),
+  effort: z.enum(['XS', 'S', 'M', 'L']).nullable(),
+  importance: z.enum(['!!']).nullable(),
+  isStale: z.boolean().describe('True if the task has been carried over for 2 or more days.'),
 });
 
 const SessionSchema = z.object({
   energy: z.enum(['low', 'med', 'high']),
-  sessionQuickWinsCompleted: z.number(),
 });
 
-const AiSortingTasksInputSchema = z.object({
-  tasks: z.array(TaskSchema).describe('An array of tasks to be sorted.'),
-  session: SessionSchema.describe('The current user session information, including energy level.'),
+const AiTaskEnhancementInputSchema = z.object({
+  tasks: z.array(TaskSchema).describe('The full list of "todo" tasks.'),
+  topTaskId: z.string().describe('The ID of the task that has been locally determined as the top priority.'),
+  session: SessionSchema.describe('The current user session, including energy level.'),
 });
-export type AiSortingTasksInput = z.infer<typeof AiSortingTasksInputSchema>;
+export type AiTaskEnhancementInput = z.infer<typeof AiTaskEnhancementInputSchema>;
 
-const AiSortingTasksOutputSchema = z.array(z.string()).describe('An array of task IDs sorted by priority.');
-export type AiSortingTasksOutput = z.infer<typeof AiSortingTasksOutputSchema>;
+const EffortSuggestionSchema = z.object({
+  id: z.string().describe('The ID of the task.'),
+  effort: z.enum(['XS', 'S', 'M', 'L']).describe('The suggested effort level.'),
+});
 
-export async function aiSortingTasks(input: AiSortingTasksInput): Promise<AiSortingTasksOutput> {
-  return aiSortingTasksFlow(input);
+const AiTaskEnhancementOutputSchema = z.object({
+  effortSuggestions: z
+    .array(EffortSuggestionSchema)
+    .describe('An array of effort suggestions for tasks where effort was null.'),
+  topReasons: z
+    .array(z.string())
+    .describe('An array of 2-3 short, human-readable reasons why the top-ranked task is important right now.'),
+});
+export type AiTaskEnhancementOutput = z.infer<typeof AiTaskEnhancementOutputSchema>;
+
+export async function aiEnhanceTasks(input: AiTaskEnhancementInput): Promise<AiTaskEnhancementOutput> {
+  return aiEnhanceTasksFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'aiSortingTasksPrompt',
-  input: {schema: AiSortingTasksInputSchema},
-  output: {schema: AiSortingTasksOutputSchema},
-  prompt: `You are a personal assistant designed to help users with ADHD prioritize their tasks.
+  name: 'aiTaskEnhancementPrompt',
+  input: {schema: AiTaskEnhancementInputSchema},
+  output: {schema: AiTaskEnhancementOutputSchema},
+  config: {
+    temperature: 0.2, // Low temperature for stable, predictable output
+  },
+  prompt: `You are a helpful assistant for a user with ADHD. Your goal is to provide context and suggestions for their to-do list, not to re-order it.
 
-  Given the following list of tasks, sort them by priority based on effort, importance, and freshness.
-  Take into account the user's current energy level when prioritizing tasks; High energy suggests focusing on important tasks, but low energy suggests quick wins.
+The user's app has already sorted the tasks and selected the top priority task.
 
-  Tasks:
+Your two jobs are:
+1. For any task in the list with a missing effort level, suggest one ('XS', 'S', 'M', 'L') based on its title.
+2. For the single top-priority task (ID: {{topTaskId}}), generate 2-3 brief, encouraging "Why this?" reasons it's a good choice to do now.
+
+Here is the data:
+- User's Energy: {{session.energy}}
+- Top Task ID: {{topTaskId}}
+- All To-Do Tasks:
   {{#each tasks}}
-  - id: {{id}}, title: {{title}}, effort: {{effort}}, importance: {{importance}}, status: {{status}}, listDate: {{listDate}}, isCarryover: {{isCarryover}}
+  - Task: { id: {{id}}, title: '{{title}}', effort: {{effort || 'null'}}, importance: {{importance || 'null'}}, isStale: {{isStale}} }
   {{/each}}
 
-  Energy Level: {{session.energy}}
-  Quick Wins Completed: {{session.sessionQuickWinsCompleted}}
+Rules for "Why this?" reasons:
+- Base reasons on the task's properties: importance, effort, staleness, and how it fits the user's energy.
+- Example reasons: "Quick win (XS)", "Important (!!)", "Carried over 2+ days", "Good for low energy".
+- The top task is the one with ID: {{topTaskId}}. Find it in the list to understand its properties.
+- Be concise and positive.
 
-  Prioritize tasks that are:
-  - High importance
-  - Low effort (especially if energy is low)
-  - Fresh (not carryover tasks unless they are important or the user has high energy)
-
-  Return an array of task IDs in the order of priority.
-  The output should be a JSON array of strings.
-  `,
+Return a valid JSON object matching the specified output format.
+`,
 });
 
-const aiSortingTasksFlow = ai.defineFlow(
+const aiEnhanceTasksFlow = ai.defineFlow(
   {
-    name: 'aiSortingTasksFlow',
-    inputSchema: AiSortingTasksInputSchema,
-    outputSchema: AiSortingTasksOutputSchema,
+    name: 'aiEnhanceTasksFlow',
+    inputSchema: AiTaskEnhancementInputSchema,
+    outputSchema: AiTaskEnhancementOutputSchema,
   },
   async input => {
+    // If there are no tasks needing effort suggestions and no top task, return empty.
+    const tasksToProcess = input.tasks.filter(t => t.effort === null);
+    if (tasksToProcess.length === 0 && !input.topTaskId) {
+      return { effortSuggestions: [], topReasons: [] };
+    }
+    
     const {output} = await prompt(input);
     return output!;
   }

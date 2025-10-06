@@ -1,14 +1,14 @@
 'use server';
 
-import { aiSortingTasks, type AiSortingTasksInput } from '@/ai/flows/ai-sorting-tasks';
+import { aiEnhanceTasks, type AiTaskEnhancementInput, type AiTaskEnhancementOutput } from '@/ai/flows/ai-sorting-tasks';
 
-export async function getAiSortedTaskIds(input: AiSortingTasksInput): Promise<string[]> {
+export async function getAiTaskEnhancements(input: AiTaskEnhancementInput): Promise<AiTaskEnhancementOutput> {
   try {
-    const sortedIds = await aiSortingTasks(input);
-    return sortedIds;
+    const result = await aiEnhanceTasks(input);
+    return result;
   } catch (error) {
-    console.error('Error in AI sorting action:', error);
-    // Return an empty array or handle the error as appropriate
-    return [];
+    console.error('Error in AI enhancement action:', error);
+    // Return a default empty object on error to prevent crashes
+    return { effortSuggestions: [], topReasons: [] };
   }
 }
