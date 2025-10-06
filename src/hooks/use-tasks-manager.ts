@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, Firestore } from 'firebase/firestore';
+import { getDb } from '@/lib/firebase';
 import { Task, Session, SortMode, Effort } from '@/lib/types';
 import { getToday } from '@/lib/utils';
 import { getAiTaskEnhancements } from '@/app/actions';
@@ -21,12 +21,23 @@ export function useTaskManager() {
   const [sortMode, setSortMode] = useState<SortMode>('ai');
   const [loading, setLoading] = useState(true);
   const [aiData, setAiData] = useState<AiData>({ effortSuggestions: [], topReasons: [] });
+  const [db, setDb] = useState<Firestore | null>(null);
   const { toast } = useToast();
 
   const today = getToday();
   const yesterday = getToday(subDays(new Date(), 1));
 
   useEffect(() => {
+    const initDb = async () => {
+      const firestore = await getDb();
+      setDb(firestore);
+    };
+    initDb();
+  }, []);
+
+  useEffect(() => {
+    if (!db) return;
+    
     const loadData = async () => {
       setLoading(true);
       try {
@@ -61,9 +72,10 @@ export function useTaskManager() {
       }
     };
     loadData();
-  }, [today, yesterday, toast]);
+  }, [db, today, yesterday, toast]);
   
   const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>) => {
+    if (!db) return;
     const taskToAdd: Task = {
       ...newTask,
       id: crypto.randomUUID(),
@@ -85,9 +97,10 @@ export function useTaskManager() {
       toast({ title: "Error", description: "Failed to save new task.", variant: "destructive" });
       setTasks(prev => prev.filter(p => p.id !== taskToAdd.id));
     }
-  }, [today, toast]);
+  }, [db, today, toast]);
 
   const addTasks = useCallback(async (newTasks: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status'>[]) => {
+    if (!db) return;
     const tasksToAdd: Task[] = newTasks.map(t => ({
       ...t,
       id: crypto.randomUUID(),
@@ -109,9 +122,10 @@ export function useTaskManager() {
       toast({ title: "Error", description: "Failed to save new tasks.", variant: "destructive" });
       setTasks(prev => prev.filter(p => !tasksToAdd.some(n => n.id === p.id)));
     }
-  }, [today, toast]);
+  }, [db, today, toast]);
   
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
+    if (!db) return;
     const originalTasks = tasks;
     const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates } : t);
     setTasks(newTasks);
@@ -125,9 +139,10 @@ export function useTaskManager() {
       toast({ title: "Error", description: "Failed to update task.", variant: "destructive" });
       setTasks(originalTasks);
     }
-  }, [tasks, today, toast]);
+  }, [db, tasks, today, toast]);
 
   const deleteTask = useCallback(async (id: string) => {
+    if (!db) return;
     const taskToDelete = tasks.find(t => t.id === id);
     if (!taskToDelete) return;
 
@@ -144,9 +159,10 @@ export function useTaskManager() {
         toast({ title: "Error", description: "Failed to delete task.", variant: "destructive" });
         setTasks(originalTasks);
     }
-  }, [tasks, today, toast]);
+  }, [db, tasks, today, toast]);
 
   const addCarryoverToToday = useCallback(async (id: string) => {
+    if (!db) return;
     const task = carryoverTasks.find(t => t.id === id);
     if (!task) return;
 
@@ -167,7 +183,7 @@ export function useTaskManager() {
         setCarryoverTasks(prev => [...prev, task]);
         setTasks(prev => prev.filter(t => t.id !== newTask.id));
     }
-  }, [carryoverTasks, today, toast]);
+  }, [db, carryoverTasks, today, toast]);
 
   const getTaskScore = useCallback((task: Task, energy: Session['energy']) => {
     const effortEaseMap: Record<Effort, number> = { XS: 1, S: 0.75, M: 0.3, L: 0.1 };
@@ -229,7 +245,7 @@ export function useTaskManager() {
   }, [sortedTasks]);
 
   useEffect(() => {
-    if (sortMode !== 'ai' || loading) return;
+    if (sortMode !== 'ai' || loading || !db) return;
 
     const todoTasks = tasks.filter(t => t.status === 'todo');
     if (todoTasks.length === 0) {
@@ -284,7 +300,7 @@ export function useTaskManager() {
     };
 
     runAiEnhancement();
-  }, [sortMode, tasks, session, firstTask, loading, today]);
+  }, [sortMode, tasks, session, firstTask, loading, today, db]);
 
 
   return {

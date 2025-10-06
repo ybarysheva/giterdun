@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, enableIndexedDbPersistence, Firestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 // IMPORTANT: Replace with your actual Firebase project configuration
@@ -13,20 +13,34 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+if (!getApps().length) {
+  initializeApp(firebaseConfig);
+}
 
-// Initialize Cloud Firestore and get a reference to the service
-export const db = getFirestore(app);
+let db: Firestore;
 
-// Enable offline persistence
-try {
-    enableIndexedDbPersistence(db);
-} catch (err: any) {
-    if (err.code == 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a a time.
-        console.warn('Firebase persistence failed: multiple tabs open.');
-    } else if (err.code == 'unimplemented') {
-        // The current browser does not support all of the features required to enable persistence
-        console.warn('Firebase persistence failed: browser does not support it.');
+const initializeDb = async () => {
+    if (db) return db;
+
+    const firestore = getFirestore();
+    try {
+        await enableIndexedDbPersistence(firestore);
+    } catch (err: any) {
+        if (err.code == 'failed-precondition') {
+            console.warn('Firebase persistence failed: multiple tabs open.');
+        } else if (err.code == 'unimplemented') {
+            console.warn('Firebase persistence failed: browser does not support it.');
+        }
     }
+    db = firestore;
+    return db;
+};
+
+export const getDb = async () => {
+    if (typeof window === 'undefined') {
+        // On the server, return a non-persistent instance
+        return getFirestore();
+    }
+    // On the client, initialize with persistence
+    return await initializeDb();
 }
