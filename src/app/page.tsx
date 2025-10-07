@@ -83,19 +83,29 @@ export default function Home() {
               <p>Sort Mode: {sortMode}</p>
               <p>First Task ID: {firstTask?.id || 'N/A'}</p>
             </div>
-            <div>
-              <p className="font-semibold mb-2">Task Scores (Higher is better):</p>
-              <ul className="space-y-1">
-                {debugInfo.scores.map(item => (
-                  <li key={item.id}>
-                    <span className={item.id === firstTask?.id ? 'font-bold text-primary' : ''}>
-                      {item.title}: {item.score.toFixed(4)}
-                    </span>
-                    <p className="text-muted-foreground text-xs pl-4">{item.reason}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            {debugInfo.scores && debugInfo.scores.length > 0 && (
+              <div>
+                <p className="font-semibold mb-2">Task Scores (Higher is better):</p>
+                <ul className="space-y-1">
+                  {debugInfo.scores.map(item => (
+                    <li key={item.id}>
+                      <span className={item.id === firstTask?.id ? 'font-bold text-primary' : ''}>
+                        {item.title}: {item.score.toFixed(4)}
+                      </span>
+                      <p className="text-muted-foreground text-xs pl-4">{item.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {debugInfo.aiOutput && (
+              <div>
+                <p className="font-semibold mb-2">AI Output:</p>
+                <pre className="text-wrap p-2 bg-background/50 rounded text-xs">
+                  {JSON.stringify(debugInfo.aiOutput, null, 2)}
+                </pre>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

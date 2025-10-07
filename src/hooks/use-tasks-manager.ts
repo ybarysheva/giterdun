@@ -5,7 +5,7 @@ import { doc, getDoc, arrayUnion, collection, Timestamp, writeBatch } from 'fire
 import { useFirebase, useUser, useMemoFirebase } from '@/firebase';
 import { Task, Session, SortMode, Effort } from '@/lib/types';
 import { getToday } from '@/lib/utils';
-import { getAiTaskEnhancements } from '@/app/actions';
+import { getAiTaskEnhancements, type AiTaskEnhancementOutput } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, differenceInDays } from 'date-fns';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
@@ -17,6 +17,7 @@ type AiData = {
 
 type DebugInfo = {
   scores: { id: string, title: string, score: number, reason: string }[];
+  aiOutput?: AiTaskEnhancementOutput | null;
 };
 
 // Helper to remove undefined values from an object before writing to Firestore
@@ -57,6 +58,7 @@ export function useTaskManager() {
     
     if (tasksNeedingEffort.length === 0 && !currentTopTaskId) {
       setAiData({ effortSuggestions: [], topReasons: [] });
+      setDebugInfo(prev => prev ? { ...prev, aiOutput: null } : null);
       return;
     }
 
@@ -74,6 +76,7 @@ export function useTaskManager() {
       };
       
       const result = await getAiTaskEnhancements(aiInput);
+      setDebugInfo(prev => prev ? { ...prev, aiOutput: result } : { scores: [], aiOutput: result });
       
       // Update top reasons immediately
       setAiData(prev => ({...prev, topReasons: result.topReasons}));
@@ -151,7 +154,7 @@ export function useTaskManager() {
               flagged: task.flagged ?? false,
               isCarryover: true,
               originDate: task.originDate ?? task.listDate,
-              createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
+              createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : t.createdAt,
             }))
             .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
             
@@ -313,7 +316,7 @@ export function useTaskManager() {
           if (effortA !== effortB) return effortA - effortB;
           return a.createdAt - b.createdAt;
         });
-        setDebugInfo(null);
+        setDebugInfo(prev => ({ ...prev, scores: [] }));
         break;
       case 'ai':
         const scoredTasks = todoTasks.map(task => {
@@ -329,12 +332,12 @@ export function useTaskManager() {
           return a.title.localeCompare(b.title);
         });
         scores.sort((a,b) => b.score - a.score);
-        setDebugInfo({ scores });
+        setDebugInfo(prev => ({ ...prev, scores }));
         break;
       case 'custom':
       default:
         sortedTodoTasks = [...todoTasks].sort((a,b) => (a.createdAt || 0) - (b.createdAt || 0));
-        setDebugInfo(null);
+        setDebugInfo(prev => ({ ...prev, scores: [] }));
         break;
     }
     return [...sortedTodoTasks, ...doneTasks];
@@ -347,7 +350,10 @@ export function useTaskManager() {
   // This effect calls the AI for top task reasons, separate from effort estimation.
   useEffect(() => {
     if (sortMode !== 'ai' || loading || !firstTask) {
-      if (sortMode !== 'ai') setAiData(d => ({ ...d, topReasons: [] }));
+      if (sortMode !== 'ai') {
+        setAiData(d => ({ ...d, topReasons: [] }));
+        setDebugInfo(prev => prev ? { ...prev, aiOutput: null } : null);
+      }
       return;
     }
 
