@@ -1,79 +1,78 @@
 /**
- * @fileoverview Firestore Security Rules for the Task Management Application.
+ * @fileoverview Firestore Security Rules for a single-user to-do application.
  *
  * Core Philosophy:
- * This ruleset enforces a strict user-ownership model where each user can only
- * access data associated with their unique Firebase Authentication UID.
+ * This ruleset enforces a strict user-ownership model. Each user can only
+ * access data under their own user ID. This is achieved through path-based
+ * authorization using the `userId` parameter. Anonymous Authentication is used
+ * which guarantees that a `uid` is always available.
  *
  * Data Structure:
- * All data is nested under /users/{userId}, ensuring clear ownership.
- *  - /users/{userId}: Root collection for user data.
- *  - /users/{userId}/lists/{listId}: Contains daily task lists, where {listId} is the date (YYYY-MM-DD).
+ * All data is nested under `/users/{userId}`, ensuring data isolation.
+ * - /users/{userId}: Root collection for user profiles.
+ * - /users/{userId}/lists/{listId}: Stores daily lists of tasks. The `listId`
+ *   corresponds to the date (YYYY-MM-DD).
  *
  * Key Security Decisions:
- * - Anonymous Authentication: The application leverages Firebase Anonymous Authentication,
- *   so all users have a UID, even without a traditional login.
- * - User Data Isolation: All data resides under a user's UID, providing inherent isolation.
- * - No User Listing: Listing all users is not permitted for privacy and security reasons.
- * - No External Collection Lookups: Rules avoid using `get()` or `exists()` to reference
- *   other collections for authorization, ensuring scalability and performance.
+ * - User data is strictly scoped to the authenticated user.
+ * - List operations are secured by path-based authorization.
+ * - Data validation is relaxed to allow rapid prototyping, except for
+ *   checks that are essential for authorization and relational integrity.
  *
  * Denormalization for Authorization:
- * The 'List' documents under /users/{userId}/lists/{listId} are denormalized to include the 'userId' to ensure data consistency.
+ * The data model denormalizes the `userId` into the `List` document. This
+ * simplifies authorization checks.
  */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * @description: Enforces read and write access to a user's root document only to the authenticated user.
-     * @path: /users/{userId}
-     * @allow: (create) - Authenticated user can create their own user document if the userId matches their auth UID.
-     * @allow: (get, update, delete) - Authenticated user can read, update, or delete their own user document.
-     * @deny: Any other user attempting to access this document.
-     * @principle: Enforces document ownership based on the user's authentication UID.
+     * @description Enforces user-ownership for the /users/{userId} collection.
+     * @path /users/{userId}
+     * @allow (create) - Authenticated user creates their own user document.
+     * @deny (create) - Unauthenticated user tries to create a user document.
+     * @deny (create) - Authenticated user tries to create another user's document (userId mismatch).
+     * @allow (get) - Authenticated user can read their own user document.
+     * @deny (get) - Authenticated user tries to read another user's document.
+     * @allow (list) - Listing users is not allowed.
+     * @principle Enforces document ownership; only the authenticated user can create their own user document.
      */
     match /users/{userId} {
-      // Checks if the user is signed in
-      function isSignedIn() {
-        return request.auth != null;
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
       }
 
-      // Checks if the user is the owner of the resource
-      function isOwner(userId) {
-        return request.auth.uid == userId;
-      }
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if false; // Listing all users is not permitted.
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId) && resource != null;
-      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId);
+      allow update: if false;
+      allow delete: if false;
     }
 
     /**
-     * @description: Manages access to daily task lists for a specific user.
-     * @path: /users/{userId}/lists/{listId}
-     * @allow: (create) Authenticated user can create a list if userId matches their auth UID and listId is a valid date string.
-     * @allow: (get, update, delete) Authenticated user can read, update, or delete their own list.
-     * @deny: Any other user attempting to access this list.
-     * @principle: Enforces user-specific data access based on path and authentication.
+     * @description Enforces user-ownership for the /users/{userId}/lists/{listId} collection.
+     * @path /users/{userId}/lists/{listId}
+     * @allow (create) - Authenticated user creates a list document under their user ID.
+     * @deny (create) - Authenticated user tries to create a list document under another user's ID.
+     * @deny (create) - Unauthenticated user tries to create a list document.
+     * @allow (get) - Authenticated user can read a list document under their user ID.
+     * @deny (get) - Authenticated user tries to read a list document under another user's ID.
+     * @allow (list) - Authenticated user can list list documents under their user ID.
+     * @deny (update) - Authenticated user tries to update a list document under another user's ID.
+     * @deny (delete) - Authenticated user tries to delete a list document under another user's ID.
+     * @principle Enforces document ownership; only the authenticated user can manage list documents under their own user ID.
      */
     match /users/{userId}/lists/{listId} {
-      // Checks if the user is signed in
-      function isSignedIn() {
-        return request.auth != null;
-      }
-
-      // Checks if the user is the owner of the resource
       function isOwner(userId) {
-        return request.auth.uid == userId;
+        return request.auth != null && request.auth.uid == userId;
       }
 
-      allow get: if isSignedIn() && isOwner(userId);
-      allow list: if isSignedIn() && isOwner(userId);
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isSignedIn() && isOwner(userId) && resource != null;
-      allow delete: if isSignedIn() && isOwner(userId) && resource != null;
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if false;
+      allow delete: if false;
     }
   }
 }

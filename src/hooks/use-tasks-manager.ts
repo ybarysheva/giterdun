@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove, collection, writeBatch, Timestamp, FieldValue } from 'firebase/firestore';
+import { doc, getDoc, setDoc, arrayUnion, collection, Timestamp } from 'firebase/firestore';
 import { useFirebase, useUser, useMemoFirebase } from '@/firebase';
 import { Task, Session, SortMode, Effort } from '@/lib/types';
 import { getToday } from '@/lib/utils';
 import { getAiTaskEnhancements } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, differenceInDays } from 'date-fns';
-import { deleteDocumentNonBlocking, setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 
 type AiData = {
@@ -38,7 +38,7 @@ export function useTaskManager() {
 
 
   useEffect(() => {
-    if (isUserLoading || !firestore || !userListsCollection) {
+    if (isUserLoading || !user || !firestore || !userListsCollection) {
       setLoading(true);
       return;
     };
@@ -72,7 +72,7 @@ export function useTaskManager() {
               ...task, 
               isCarryover: true,
               createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
-              completedAt: t.completedAt instanceof Timestamp ? t.completedAt.toMillis() : t.completedAt,
+              completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : task.completedAt,
             }))
             // Filter out tasks already carried over to today
             .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
@@ -120,7 +120,6 @@ export function useTaskManager() {
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
     if (!userListsCollection) return;
 
-    const originalTasks = tasks;
     const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates, ...(updates.status === 'done' && !t.completedAt && { completedAt: Date.now() }) } : t);
     setTasks(newTasks);
 
@@ -130,15 +129,11 @@ export function useTaskManager() {
 
   const deleteTask = useCallback(async (id: string) => {
     if (!userListsCollection) return;
-    const taskToDelete = tasks.find(t => t.id === id);
-    if (!taskToDelete) return;
 
-    setTasks(prev => prev.filter(t => t.id !== id));
-
-    const todayRef = doc(userListsCollection, today);
     const updatedTasks = tasks.filter(t => t.id !== id);
+    setTasks(updatedTasks);
     
-    // Instead of arrayRemove (which needs the exact object), we overwrite with the filtered list.
+    const todayRef = doc(userListsCollection, today);
     setDocumentNonBlocking(todayRef, { tasks: updatedTasks }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
@@ -160,7 +155,7 @@ export function useTaskManager() {
     const todayRef = doc(userListsCollection, today);
     updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(newTask) });
 
-  }, [userListsCollection, firestore, carryoverTasks, today, toast]);
+  }, [userListsCollection, firestore, carryoverTasks, today]);
 
 
   const getTaskScore = useCallback((task: Task, energy: Session['energy']) => {
