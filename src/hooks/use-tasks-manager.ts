@@ -8,8 +8,8 @@ import { getToday } from '@/lib/utils';
 import { getAiTaskEnhancements } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, differenceInDays } from 'date-fns';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { setDocumentNonBlocking, deleteDocumentNonBlocking, addDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+
 
 type AiData = {
   effortSuggestions: { id: string; effort: Effort }[];
@@ -28,63 +28,10 @@ const cleanFirestoreData = (data: any) => {
       cleanedData[key] = data[key];
     }
   }
+  // remove legacy importance field
+  delete cleanedData.importance;
   return cleanedData;
 };
-
-
-const writeToFirestore = async (ref: any, data: any, options: any) => {
-  try {
-    const { setDoc } = await import('firebase/firestore');
-    await setDoc(ref, data, options);
-  } catch (error) {
-    errorEmitter.emit(
-      'permission-error',
-      new FirestorePermissionError({
-        path: ref.path,
-        operation: options.merge ? 'update' : 'create',
-        requestResourceData: data,
-      })
-    );
-  }
-};
-
-const batchWriteToFirestore = async (firestore: any, writes: { ref: any, data: any, options: any }[]) => {
-    try {
-        const batch = writeBatch(firestore);
-        writes.forEach(write => {
-            batch.set(write.ref, write.data, write.options);
-        });
-        await batch.commit();
-    } catch (error) {
-         writes.forEach(write => {
-            errorEmitter.emit(
-              'permission-error',
-              new FirestorePermissionError({
-                path: write.ref.path,
-                operation: write.options.merge ? 'update' : 'create',
-                requestResourceData: write.data,
-              })
-            );
-        });
-    }
-};
-
-const updateFirestoreDoc = async (ref: any, data: any) => {
-  try {
-    const { updateDoc } = await import('firebase/firestore');
-    await updateDoc(ref, data);
-  } catch (error) {
-     errorEmitter.emit(
-      'permission-error',
-      new FirestorePermissionError({
-        path: ref.path,
-        operation: 'update',
-        requestResourceData: data,
-      })
-    );
-  }
-};
-
 
 export function useTaskManager() {
   const { firestore } = useFirebase();
@@ -127,12 +74,15 @@ export function useTaskManager() {
           const todayData = todaySnap.data();
           todaysTasks = (todayData.tasks || []).map((t: any) => ({
             ...t,
+            // One-time migration from importance to flagged
+            flagged: t.flagged ?? (t.importance === '!!'),
+            importance: undefined, // remove old field
             createdAt: t.createdAt instanceof Timestamp ? t.createdAt.toMillis() : t.createdAt,
             completedAt: t.completedAt instanceof Timestamp ? t.completedAt.toMillis() : t.completedAt,
           }));
         } else {
           // Create today's list if it doesn't exist
-          writeToFirestore(todayRef, { date: today, tasks: [] }, { merge: false });
+          setDocumentNonBlocking(todayRef, { date: today, tasks: [] }, { merge: false });
         }
         
         if (yesterdaySnap.exists()) {
@@ -140,7 +90,9 @@ export function useTaskManager() {
           const carryovers = (yesterdayData.tasks || [])
             .filter((task: Task) => task.status === 'todo')
             .map((task: any) => ({ 
-              ...task, 
+              ...task,
+              flagged: task.flagged ?? (task.importance === '!!'),
+              importance: undefined,
               isCarryover: true,
               createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
               completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : task.completedAt,
@@ -168,7 +120,7 @@ export function useTaskManager() {
     loadData();
   }, [isUserLoading, firestore, user, userListsCollection, today, yesterday, toast]);
   
-  const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => {
+  const addTask = useCallback(async (newTask: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate' | 'flagged'>) => {
     if (!userListsCollection) return;
 
     const now = Date.now();
@@ -179,14 +131,15 @@ export function useTaskManager() {
       isCarryover: false,
       status: 'todo' as const,
       createdAt: now,
-      originDate: today
+      originDate: today,
+      flagged: false, // default to false
     };
 
     setTasks(prev => [...prev, taskToAdd]);
     
     const todayRef = doc(userListsCollection, today);
     const cleanedTask = cleanFirestoreData(taskToAdd);
-    updateFirestoreDoc(todayRef, { tasks: arrayUnion(cleanedTask) });
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
   }, [userListsCollection, today]);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
@@ -197,7 +150,7 @@ export function useTaskManager() {
 
     const cleanedTasks = newTasks.map(cleanFirestoreData);
     const todayRef = doc(userListsCollection, today);
-    writeToFirestore(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
+    setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
   const deleteTask = useCallback(async (id: string) => {
@@ -208,7 +161,7 @@ export function useTaskManager() {
     
     const cleanedTasks = updatedTasks.map(cleanFirestoreData);
     const todayRef = doc(userListsCollection, today);
-    writeToFirestore(todayRef, { tasks: cleanedTasks }, { merge: true });
+    setDocumentNonBlocking(todayRef, { tasks: cleanedTasks }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
   const addCarryoverToToday = useCallback(async (id: string) => {
@@ -228,7 +181,7 @@ export function useTaskManager() {
     
     const todayRef = doc(userListsCollection, today);
     const cleanedTask = cleanFirestoreData(newTask);
-    updateFirestoreDoc(todayRef, { tasks: arrayUnion(cleanedTask) });
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
 
   }, [userListsCollection, firestore, carryoverTasks, today]);
 
@@ -236,7 +189,7 @@ export function useTaskManager() {
   const getTaskScore = useCallback((task: Task, energy: Session['energy']) => {
     const effortEaseMap: Record<Effort, number> = { XS: 1, S: 0.75, M: 0.3, L: 0.1 };
     
-    const importanceScore = task.importance === '!!' ? 1 : 0;
+    const flagScore = task.flagged ? 1 : 0;
     const effortEaseScore = task.effort ? effortEaseMap[task.effort] : 0.4; // Default score for null effort
     
     const stalenessDays = differenceInDays(new Date(), new Date(task.originDate || task.createdAt));
@@ -256,9 +209,9 @@ export function useTaskManager() {
       energyReason = 'No effort set. ';
     }
     
-    const totalScore = (0.45 * importanceScore) + (0.35 * effortEaseScore) + (0.20 * stalenessNudge) + energyFit;
+    const totalScore = (0.45 * flagScore) + (0.35 * effortEaseScore) + (0.20 * stalenessNudge) + energyFit;
     
-    const reason = `IMP: ${importanceScore > 0 ? 'Yes' : 'No'} (${(0.45 * importanceScore).toFixed(2)}) / EASE: ${task.effort || 'N/A'} (${(0.35 * effortEaseScore).toFixed(2)}) / STALE: ${isStale ? 'Yes' : 'No'} (${(0.20 * stalenessNudge).toFixed(2)}) / ENERGY: ${energyReason}(${energyFit.toFixed(2)})`;
+    const reason = `FLAG: ${flagScore > 0 ? 'On' : 'Off'} (${(0.45 * flagScore).toFixed(2)}) / EASE: ${task.effort || 'N/A'} (${(0.35 * effortEaseScore).toFixed(2)}) / STALE: ${isStale ? 'Yes' : 'No'} (${(0.20 * stalenessNudge).toFixed(2)}) / ENERGY: ${energyReason}(${energyFit.toFixed(2)})`;
     
     return { score: totalScore, reason };
   }, []);
@@ -277,7 +230,9 @@ export function useTaskManager() {
           const effortA = effortOrder.indexOf(a.effort);
           const effortB = effortOrder.indexOf(b.effort);
           if (effortA !== effortB) return effortA - effortB;
-          return (a.createdAt || 0) - (b.createdAt || 0);
+          // Tie-breakers
+          if (a.title.length !== b.title.length) return a.title.length - b.title.length;
+          return a.title.localeCompare(b.title);
         });
         setDebugInfo(null); // No scores for easy mode
         break;
@@ -290,7 +245,9 @@ export function useTaskManager() {
 
         sortedTodoTasks = scoredTasks.sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
-          return (a.createdAt || 0) - (b.createdAt || 0);
+          // Tie-breakers
+          if (a.title.length !== b.title.length) return a.title.length - b.title.length;
+          return a.title.localeCompare(b.title);
         });
         scores.sort((a,b) => b.score - a.score);
         setDebugInfo({ scores });
@@ -327,7 +284,7 @@ export function useTaskManager() {
             id: t.id,
             title: t.title,
             effort: t.effort,
-            importance: t.importance,
+            importance: null, // Legacy, send null
             isStale: (differenceInDays(new Date(), new Date(t.originDate || t.createdAt))) >= 2,
           })),
           topTaskId: topTask?.id || '',
@@ -338,9 +295,8 @@ export function useTaskManager() {
           const result = await getAiTaskEnhancements(aiInput);
           setAiData(result);
 
-          if (result.effortSuggestions.length > 0) {
-            let writes: { ref: any, data: any, options: any }[] = [];
-            const updatedTasks = tasks.map(task => {
+          if (result.effortSuggestions.length > 0 && firestore) {
+            const newTasks = tasks.map(task => {
               const suggestion = result.effortSuggestions.find(s => s.id === task.id);
               if (suggestion && !task.effort) {
                 return { ...task, effort: suggestion.effort };
@@ -348,13 +304,11 @@ export function useTaskManager() {
               return task;
             });
             
-            setTasks(updatedTasks); 
-
-            const cleanedTasks = updatedTasks.map(cleanFirestoreData);
-            const todayRef = doc(userListsCollection, today);
-            
-            if (firestore) {
-                batchWriteToFirestore(firestore, [{ ref: todayRef, data: { tasks: cleanedTasks, date: today }, options: { merge: true }}]);
+            if (JSON.stringify(newTasks) !== JSON.stringify(tasks)) {
+                setTasks(newTasks); 
+                const cleanedTasks = newTasks.map(cleanFirestoreData);
+                const todayRef = doc(userListsCollection, today);
+                setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
             }
           }
         } catch (e) {

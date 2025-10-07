@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Trash2, Edit, Star } from 'lucide-react';
+import { MoreVertical, Trash2, Edit, Flag } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +36,10 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
   
   const handleStatusChange = (checked: boolean) => {
     onUpdateTask(task.id, { status: checked ? 'done' : 'todo' });
+  };
+
+  const handleFlagToggle = () => {
+    onUpdateTask(task.id, { flagged: !task.flagged });
   };
 
   const handleSaveEdit = () => {
@@ -96,13 +100,24 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
           )}
         </div>
         <div className="flex items-center gap-2">
-            {task.importance === '!!' && task.status === 'todo' && <Star className="w-4 h-4 text-yellow-500" />}
             {task.effort && task.status === 'todo' && (
                 <Badge variant="outline" className={cn(effortColors[task.effort], 'border-transparent')}>
                     {task.effort}
                 </Badge>
             )}
         </div>
+        
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0"
+          onClick={handleFlagToggle}
+          aria-pressed={task.flagged}
+        >
+          <Flag className={cn("h-4 w-4", task.flagged ? 'text-yellow-500 fill-yellow-400' : 'text-muted-foreground/70')} />
+          <span className="sr-only">{task.flagged ? 'Unflag task' : 'Flag task'}</span>
+        </Button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">

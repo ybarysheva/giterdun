@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 interface TaskInputProps {
-  onAddTask: (task: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => void;
+  onAddTask: (task: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate' | 'flagged'>) => void;
 }
 
 const effortMap: { [key: string]: Effort } = {
@@ -18,7 +18,6 @@ const effortMap: { [key: string]: Effort } = {
   '1h': 'L',
 };
 const effortRegex = /\b(5m|10m|25m|1h)\b/gi;
-const importanceRegex = /!!/g;
 
 export function TaskInput({ onAddTask }: TaskInputProps) {
   const [text, setText] = useState('');
@@ -28,20 +27,16 @@ export function TaskInput({ onAddTask }: TaskInputProps) {
 
     let title = text.trim();
     let effort: Effort | null = null;
-    let importance: '!!' | null = null;
 
     const effortMatch = title.match(effortRegex);
     if (effortMatch) {
       effort = effortMap[effortMatch[0].toLowerCase()];
       title = title.replace(effortRegex, '').trim();
     }
-
-    if (importanceRegex.test(title)) {
-      importance = '!!';
-      title = title.replace(importanceRegex, '').trim();
-    }
-
-    onAddTask({ title, effort, importance });
+    
+    // The "!!" parsing is removed. Flagging is now handled by a UI button.
+    
+    onAddTask({ title, effort });
     setText('');
   };
 

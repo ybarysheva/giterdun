@@ -22,13 +22,9 @@
             "type": "string"
           }
         },
-        "importance": {
-          "type": "string",
-          "description": "An indicator of the task's importance ('!!' or null).",
-          "format": "enum",
-          "items": {
-            "type": "string"
-          }
+        "flagged": {
+          "type": "boolean",
+          "description": "Indicates whether the task is flagged as important."
         },
         "status": {
           "type": "string",
@@ -70,6 +66,7 @@
       "required": [
         "id",
         "title",
+        "flagged",
         "status",
         "listDate",
         "createdAt",
@@ -94,9 +91,9 @@
         },
         "tasks": {
           "type": "array",
-          "description": "An array of Task IDs associated with this list.",
+          "description": "An array of Task objects associated with this list.",
           "items": {
-            "type": "string"
+            "$ref": "#/backend/entities/Task"
           }
         },
         "customOrder": {

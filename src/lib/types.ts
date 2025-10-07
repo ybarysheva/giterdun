@@ -2,13 +2,15 @@ import { Timestamp } from 'firebase/firestore';
 
 export type Effort = 'XS' | 'S' | 'M' | 'L';
 
-export type Importance = '!!' | null;
+// Importance type is no longer needed
+// export type Importance = '!!' | null;
 
 export type Task = {
   id: string;
   title: string;
   effort: Effort | null;
-  importance: Importance;
+  // importance: Importance;
+  flagged: boolean; // new field
   status: 'todo' | 'done';
   listDate: string; // YYYY-MM-DD
   isCarryover: boolean;
