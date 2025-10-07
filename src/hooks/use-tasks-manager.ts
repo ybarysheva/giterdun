@@ -8,7 +8,7 @@ import { getToday } from '@/lib/utils';
 import { getAiTaskEnhancements } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, differenceInDays } from 'date-fns';
-import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 type AiData = {
   effortSuggestions: { id: string; effort: Effort; confidence: number; reasons: string[] }[];
@@ -74,31 +74,36 @@ export function useTaskManager() {
       };
       
       const result = await getAiTaskEnhancements(aiInput);
-      setAiData(result);
+      
+      // Update top reasons immediately
+      setAiData(prev => ({...prev, topReasons: result.topReasons}));
 
       if (result.effortSuggestions.length > 0 && userListsCollection) {
-        let didUpdate = false;
-        const updatedTasks = currentTasks.map(task => {
-          const suggestion = result.effortSuggestions.find(s => s.id === task.id);
-          if (suggestion && task.effort === null) {
-            didUpdate = true;
-            return { 
-              ...task, 
-              effort: suggestion.effort,
-              effortConfidence: suggestion.confidence,
-              effortReasons: suggestion.reasons,
-              effortSource: 'ai' as const
-            };
+        setTasks(prevTasks => {
+          let didUpdate = false;
+          const updatedTasks = prevTasks.map(task => {
+            const suggestion = result.effortSuggestions.find(s => s.id === task.id);
+            if (suggestion && task.effort === null && task.effortSource !== 'user') {
+              didUpdate = true;
+              return { 
+                ...task, 
+                effort: suggestion.effort,
+                effortConfidence: suggestion.confidence,
+                effortReasons: suggestion.reasons,
+                effortSource: 'ai' as const
+              };
+            }
+            return task;
+          });
+          
+          if (didUpdate) {
+              const cleanedTasks = updatedTasks.map(cleanFirestoreData);
+              const todayRef = doc(userListsCollection, today);
+              setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
+              return updatedTasks;
           }
-          return task;
+          return prevTasks;
         });
-        
-        if (didUpdate) {
-            setTasks(updatedTasks);
-            const cleanedTasks = updatedTasks.map(cleanFirestoreData);
-            const todayRef = doc(userListsCollection, today);
-            setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
-        }
       }
     } catch (e) {
       console.error('AI enhancement failed', e);
@@ -177,6 +182,7 @@ export function useTaskManager() {
       createdAt: now,
       originDate: today,
       flagged: false,
+      effortSource: newTaskData.effort ? 'user' : null,
     };
 
     const newTasks = [...tasks, taskToAdd];
@@ -186,8 +192,10 @@ export function useTaskManager() {
     const cleanedTask = cleanFirestoreData(taskToAdd);
     updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
     
-    // Trigger AI enhancement non-blockingly
-    runAiEnhancements(newTasks, session);
+    // Trigger AI enhancement non-blockingly if no effort was set by user
+    if (!taskToAdd.effort) {
+        runAiEnhancements(newTasks, session);
+    }
 
   }, [userListsCollection, tasks, today, session, runAiEnhancements]);
 
@@ -195,10 +203,24 @@ export function useTaskManager() {
     if (!userListsCollection) return;
     
     let originalTitle: string | undefined;
+    let runAi = false;
     const newTasks = tasks.map(t => {
       if (t.id === id) {
         originalTitle = t.title;
-        return { ...t, ...updates, ...(updates.status === 'done' && !t.completedAt && { completedAt: Date.now() }) };
+
+        // If user manually changes effort, set the source
+        if (updates.effort && updates.effort !== t.effort) {
+          updates.effortSource = 'user';
+        }
+        
+        const updatedTask = { ...t, ...updates, ...(updates.status === 'done' && !t.completedAt && { completedAt: Date.now() }) };
+        
+        // Check if AI should run after this update
+        if (updates.title && updates.title !== originalTitle && updatedTask.effortSource !== 'user') {
+            runAi = true;
+        }
+
+        return updatedTask;
       }
       return t;
     });
@@ -207,10 +229,8 @@ export function useTaskManager() {
     const cleanedTasks = newTasks.map(cleanFirestoreData);
     const todayRef = doc(userListsCollection, today);
     setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
-
-    // If title changed and effort is not user-set, run AI
-    const updatedTask = newTasks.find(t => t.id === id);
-    if (updatedTask && updates.title && updates.title !== originalTitle && updatedTask.effortSource !== 'user') {
+    
+    if (runAi) {
       runAiEnhancements(newTasks, session);
     }
   }, [userListsCollection, tasks, today, session, runAiEnhancements]);
@@ -304,7 +324,9 @@ export function useTaskManager() {
 
         sortedTodoTasks = scoredTasks.sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
-          return a.createdAt - b.createdAt;
+          // Tie-breakers
+          if (a.title.length !== b.title.length) return a.title.length - b.title.length;
+          return a.title.localeCompare(b.title);
         });
         scores.sort((a,b) => b.score - a.score);
         setDebugInfo({ scores });
@@ -333,6 +355,17 @@ export function useTaskManager() {
     return () => clearTimeout(timeoutId);
 
   }, [sortMode, firstTask, tasks, session, loading, runAiEnhancements]);
+  
+  // Effect to re-run AI effort estimation if tasks load from Firestore without effort
+  useEffect(() => {
+    if (!loading) {
+      const tasksToProcess = tasks.filter(t => t.status === 'todo' && t.effort === null && t.effortSource !== 'user');
+      if (tasksToProcess.length > 0) {
+        runAiEnhancements(tasks, session);
+      }
+    }
+  }, [loading, tasks, session, runAiEnhancements]);
+
 
   return {
     tasks: sortedTasks,
