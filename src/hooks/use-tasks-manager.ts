@@ -16,6 +16,18 @@ type AiData = {
   topReasons: string[];
 };
 
+// Helper to remove undefined values from an object before writing to Firestore
+const cleanFirestoreData = (data: any) => {
+  const cleanedData = { ...data };
+  Object.keys(cleanedData).forEach(key => {
+    if (cleanedData[key] === undefined) {
+      delete cleanedData[key];
+    }
+  });
+  return cleanedData;
+};
+
+
 export function useTaskManager() {
   const { firestore } = useFirebase();
   const { user, isUserLoading } = useUser();
@@ -72,7 +84,7 @@ export function useTaskManager() {
               ...task, 
               isCarryover: true,
               createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
-              completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : task.completedAt,
+              completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : t.completedAt,
             }))
             // Filter out tasks already carried over to today
             .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
@@ -114,7 +126,8 @@ export function useTaskManager() {
     setTasks(prev => [...prev, taskToAdd]);
     
     const todayRef = doc(userListsCollection, today);
-    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(taskToAdd) });
+    const cleanedTask = cleanFirestoreData(taskToAdd);
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
   }, [userListsCollection, today]);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
@@ -123,8 +136,9 @@ export function useTaskManager() {
     const newTasks = tasks.map(t => t.id === id ? { ...t, ...updates, ...(updates.status === 'done' && !t.completedAt && { completedAt: Date.now() }) } : t);
     setTasks(newTasks);
 
+    const cleanedTasks = newTasks.map(cleanFirestoreData);
     const todayRef = doc(userListsCollection, today);
-    setDocumentNonBlocking(todayRef, { tasks: newTasks, date: today }, { merge: true });
+    setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
   const deleteTask = useCallback(async (id: string) => {
@@ -133,8 +147,9 @@ export function useTaskManager() {
     const updatedTasks = tasks.filter(t => t.id !== id);
     setTasks(updatedTasks);
     
+    const cleanedTasks = updatedTasks.map(cleanFirestoreData);
     const todayRef = doc(userListsCollection, today);
-    setDocumentNonBlocking(todayRef, { tasks: updatedTasks }, { merge: true });
+    setDocumentNonBlocking(todayRef, { tasks: cleanedTasks }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
   const addCarryoverToToday = useCallback(async (id: string) => {
@@ -153,7 +168,8 @@ export function useTaskManager() {
     setTasks(prev => [...prev, newTask]);
     
     const todayRef = doc(userListsCollection, today);
-    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(newTask) });
+    const cleanedTask = cleanFirestoreData(newTask);
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
 
   }, [userListsCollection, firestore, carryoverTasks, today]);
 
@@ -258,8 +274,9 @@ export function useTaskManager() {
           
           setTasks(updatedTasks); 
 
+          const cleanedTasks = updatedTasks.map(cleanFirestoreData);
           const todayRef = doc(userListsCollection, today);
-          setDocumentNonBlocking(todayRef, { tasks: updatedTasks, date: today }, { merge: true });
+          setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
         }
       }
     };
@@ -286,3 +303,5 @@ export function useTaskManager() {
     aiData,
   };
 }
+
+    
