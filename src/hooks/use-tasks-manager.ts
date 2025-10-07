@@ -28,8 +28,6 @@ const cleanFirestoreData = (data: any) => {
       cleanedData[key] = data[key];
     }
   }
-  // remove legacy importance field
-  delete cleanedData.importance;
   return cleanedData;
 };
 
@@ -74,9 +72,7 @@ export function useTaskManager() {
           const todayData = todaySnap.data();
           todaysTasks = (todayData.tasks || []).map((t: any) => ({
             ...t,
-            // One-time migration from importance to flagged
-            flagged: t.flagged ?? (t.importance === '!!'),
-            importance: undefined, // remove old field
+            flagged: t.flagged ?? false,
             createdAt: t.createdAt instanceof Timestamp ? t.createdAt.toMillis() : t.createdAt,
             completedAt: t.completedAt instanceof Timestamp ? t.completedAt.toMillis() : t.completedAt,
           }));
@@ -91,8 +87,7 @@ export function useTaskManager() {
             .filter((task: Task) => task.status === 'todo')
             .map((task: any) => ({ 
               ...task,
-              flagged: task.flagged ?? (task.importance === '!!'),
-              importance: undefined,
+              flagged: task.flagged ?? false,
               isCarryover: true,
               createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
               completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : task.completedAt,
@@ -284,7 +279,7 @@ export function useTaskManager() {
             id: t.id,
             title: t.title,
             effort: t.effort,
-            importance: null, // Legacy, send null
+            flagged: t.flagged,
             isStale: (differenceInDays(new Date(), new Date(t.originDate || t.createdAt))) >= 2,
           })),
           topTaskId: topTask?.id || '',

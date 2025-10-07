@@ -22,7 +22,7 @@ const TaskSchema = z.object({
   id: z.string(),
   title: z.string(),
   effort: z.enum(['XS', 'S', 'M', 'L']).nullable(),
-  importance: z.enum(['!!']).nullable(),
+  flagged: z.boolean().describe('True if the task is marked as important.'),
   isStale: z.boolean().describe('True if the task has been carried over for 2 or more days.'),
 });
 
@@ -76,12 +76,12 @@ Here is the data:
 - Top Task ID: {{topTaskId}}
 - All To-Do Tasks:
   {{#each tasks}}
-  - Task: { id: {{id}}, title: '{{title}}', effort: {{effort || 'null'}}, importance: {{importance || 'null'}}, isStale: {{isStale}} }
+  - Task: { id: {{id}}, title: '{{title}}', effort: {{effort || 'null'}}, flagged: {{flagged}}, isStale: {{isStale}} }
   {{/each}}
 
 Rules for "Why this?" reasons:
-- Base reasons on the task's properties: importance, effort, staleness, and how it fits the user's energy.
-- Example reasons: "Quick win (XS)", "Important (!!)", "Carried over 2+ days", "Good for low energy".
+- Base reasons on the task's properties: if it's flagged (important), its effort, its staleness, and how it fits the user's energy.
+- Example reasons: "Quick win (XS)", "Flagged as important", "Carried over 2+ days", "Good for low energy".
 - The top task is the one with ID: {{topTaskId}}. Find it in the list to understand its properties.
 - Be concise and positive.
 
