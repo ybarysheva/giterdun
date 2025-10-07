@@ -6,6 +6,7 @@ import { TaskInput } from '@/components/app/TaskInput';
 import { TaskList } from '@/components/app/TaskList';
 import { CarryoverList } from '@/components/app/CarryoverList';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 export default function Home() {
   const {
@@ -22,6 +23,7 @@ export default function Home() {
     loading,
     firstTask,
     aiData,
+    debugInfo,
   } = useTaskManager();
 
   return (
@@ -69,6 +71,34 @@ export default function Home() {
            </div>
         )}
       </div>
+
+      {debugInfo && (
+        <Card className="mt-16 bg-muted/50">
+          <CardHeader>
+            <CardTitle>Debug Panel</CardTitle>
+          </CardHeader>
+          <CardContent className="font-mono text-xs space-y-4">
+            <div>
+              <p>Energy: {session.energy}</p>
+              <p>Sort Mode: {sortMode}</p>
+              <p>First Task ID: {firstTask?.id || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="font-semibold mb-2">Task Scores (Higher is better):</p>
+              <ul className="space-y-1">
+                {debugInfo.scores.map(item => (
+                  <li key={item.id}>
+                    <span className={item.id === firstTask?.id ? 'font-bold text-primary' : ''}>
+                      {item.title}: {item.score.toFixed(4)}
+                    </span>
+                    <p className="text-muted-foreground text-xs pl-4">{item.reason}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </main>
   );
 }

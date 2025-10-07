@@ -1,30 +1,88 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { doc, getDoc, setDoc, arrayUnion, collection, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, arrayUnion, collection, Timestamp, writeBatch } from 'firebase/firestore';
 import { useFirebase, useUser, useMemoFirebase } from '@/firebase';
 import { Task, Session, SortMode, Effort } from '@/lib/types';
 import { getToday } from '@/lib/utils';
 import { getAiTaskEnhancements } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, differenceInDays } from 'date-fns';
-import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
-
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 type AiData = {
   effortSuggestions: { id: string; effort: Effort }[];
   topReasons: string[];
 };
 
+type DebugInfo = {
+  scores: { id: string, title: string, score: number, reason: string }[];
+};
+
 // Helper to remove undefined values from an object before writing to Firestore
 const cleanFirestoreData = (data: any) => {
-  const cleanedData = { ...data };
-  Object.keys(cleanedData).forEach(key => {
-    if (cleanedData[key] === undefined) {
-      delete cleanedData[key];
+  const cleanedData: { [key: string]: any } = {};
+  for (const key in data) {
+    if (Object.prototype.hasOwnProperty.call(data, key) && data[key] !== undefined) {
+      cleanedData[key] = data[key];
     }
-  });
+  }
   return cleanedData;
+};
+
+
+const writeToFirestore = async (ref: any, data: any, options: any) => {
+  try {
+    const { setDoc } = await import('firebase/firestore');
+    await setDoc(ref, data, options);
+  } catch (error) {
+    errorEmitter.emit(
+      'permission-error',
+      new FirestorePermissionError({
+        path: ref.path,
+        operation: options.merge ? 'update' : 'create',
+        requestResourceData: data,
+      })
+    );
+  }
+};
+
+const batchWriteToFirestore = async (firestore: any, writes: { ref: any, data: any, options: any }[]) => {
+    try {
+        const batch = writeBatch(firestore);
+        writes.forEach(write => {
+            batch.set(write.ref, write.data, write.options);
+        });
+        await batch.commit();
+    } catch (error) {
+         writes.forEach(write => {
+            errorEmitter.emit(
+              'permission-error',
+              new FirestorePermissionError({
+                path: write.ref.path,
+                operation: write.options.merge ? 'update' : 'create',
+                requestResourceData: write.data,
+              })
+            );
+        });
+    }
+};
+
+const updateFirestoreDoc = async (ref: any, data: any) => {
+  try {
+    const { updateDoc } = await import('firebase/firestore');
+    await updateDoc(ref, data);
+  } catch (error) {
+     errorEmitter.emit(
+      'permission-error',
+      new FirestorePermissionError({
+        path: ref.path,
+        operation: 'update',
+        requestResourceData: data,
+      })
+    );
+  }
 };
 
 
@@ -39,6 +97,7 @@ export function useTaskManager() {
   const [sortMode, setSortMode] = useState<SortMode>('ai');
   const [loading, setLoading] = useState(true);
   const [aiData, setAiData] = useState<AiData>({ effortSuggestions: [], topReasons: [] });
+  const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
 
   const today = getToday();
   const yesterday = getToday(subDays(new Date(), 1));
@@ -73,7 +132,7 @@ export function useTaskManager() {
           }));
         } else {
           // Create today's list if it doesn't exist
-          setDocumentNonBlocking(todayRef, { date: today, tasks: [] }, { merge: false });
+          writeToFirestore(todayRef, { date: today, tasks: [] }, { merge: false });
         }
         
         if (yesterdaySnap.exists()) {
@@ -84,7 +143,7 @@ export function useTaskManager() {
               ...task, 
               isCarryover: true,
               createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : task.createdAt,
-              completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : t.completedAt,
+              completedAt: task.completedAt instanceof Timestamp ? task.completedAt.toMillis() : task.completedAt,
             }))
             // Filter out tasks already carried over to today
             .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
@@ -127,7 +186,7 @@ export function useTaskManager() {
     
     const todayRef = doc(userListsCollection, today);
     const cleanedTask = cleanFirestoreData(taskToAdd);
-    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
+    updateFirestoreDoc(todayRef, { tasks: arrayUnion(cleanedTask) });
   }, [userListsCollection, today]);
 
   const updateTask = useCallback(async (id: string, updates: Partial<Task>) => {
@@ -138,7 +197,7 @@ export function useTaskManager() {
 
     const cleanedTasks = newTasks.map(cleanFirestoreData);
     const todayRef = doc(userListsCollection, today);
-    setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
+    writeToFirestore(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
   const deleteTask = useCallback(async (id: string) => {
@@ -149,7 +208,7 @@ export function useTaskManager() {
     
     const cleanedTasks = updatedTasks.map(cleanFirestoreData);
     const todayRef = doc(userListsCollection, today);
-    setDocumentNonBlocking(todayRef, { tasks: cleanedTasks }, { merge: true });
+    writeToFirestore(todayRef, { tasks: cleanedTasks }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
   const addCarryoverToToday = useCallback(async (id: string) => {
@@ -169,7 +228,7 @@ export function useTaskManager() {
     
     const todayRef = doc(userListsCollection, today);
     const cleanedTask = cleanFirestoreData(newTask);
-    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
+    updateFirestoreDoc(todayRef, { tasks: arrayUnion(cleanedTask) });
 
   }, [userListsCollection, firestore, carryoverTasks, today]);
 
@@ -178,23 +237,30 @@ export function useTaskManager() {
     const effortEaseMap: Record<Effort, number> = { XS: 1, S: 0.75, M: 0.3, L: 0.1 };
     
     const importanceScore = task.importance === '!!' ? 1 : 0;
-    const effortEaseScore = task.effort ? effortEaseMap[task.effort] : 0;
+    const effortEaseScore = task.effort ? effortEaseMap[task.effort] : 0.4; // Default score for null effort
     
     const stalenessDays = differenceInDays(new Date(), new Date(task.originDate || task.createdAt));
     const isStale = stalenessDays >= 2;
     const stalenessNudge = isStale ? 0.2 : 0;
 
     let energyFit = 0;
+    let energyReason = '';
     if (task.effort) {
         if (energy === 'low') {
-            if (task.effort === 'XS' || task.effort === 'S') energyFit = 0.1;
+            if (task.effort === 'XS' || task.effort === 'S') { energyFit = 0.1; energyReason = 'Good for low energy. '; }
         } else if (energy === 'high') {
-            if (task.effort === 'XS' || task.effort === 'S') energyFit = -0.1;
-            if (task.effort === 'M' || task.effort === 'L') energyFit = 0.1;
+            if (task.effort === 'M' || task.effort === 'L') { energyFit = 0.1; energyReason = 'Good for high energy. '; }
+            else { energyFit = -0.1; energyReason = 'Not a high-energy task. ';}
         }
+    } else {
+      energyReason = 'No effort set. ';
     }
     
-    return (0.45 * importanceScore) + (0.35 * effortEaseScore) + (0.20 * stalenessNudge) + energyFit;
+    const totalScore = (0.45 * importanceScore) + (0.35 * effortEaseScore) + (0.20 * stalenessNudge) + energyFit;
+    
+    const reason = `IMP: ${importanceScore > 0 ? 'Yes' : 'No'} (${(0.45 * importanceScore).toFixed(2)}) / EASE: ${task.effort || 'N/A'} (${(0.35 * effortEaseScore).toFixed(2)}) / STALE: ${isStale ? 'Yes' : 'No'} (${(0.20 * stalenessNudge).toFixed(2)}) / ENERGY: ${energyReason}(${energyFit.toFixed(2)})`;
+    
+    return { score: totalScore, reason };
   }, []);
 
   const sortedTasks = useMemo(() => {
@@ -202,6 +268,7 @@ export function useTaskManager() {
     const doneTasks = tasks.filter(t => t.status === 'done').sort((a,b) => (b.completedAt || 0) - (a.completedAt || 0));
     
     let sortedTodoTasks: Task[];
+    const scores: DebugInfo['scores'] = [];
 
     switch (sortMode) {
       case 'easy':
@@ -212,19 +279,26 @@ export function useTaskManager() {
           if (effortA !== effortB) return effortA - effortB;
           return (a.createdAt || 0) - (b.createdAt || 0);
         });
+        setDebugInfo(null); // No scores for easy mode
         break;
       case 'ai':
-        sortedTodoTasks = [...todoTasks].sort((a, b) => {
-          const scoreA = getTaskScore(a, session.energy);
-          const scoreB = getTaskScore(b, session.energy);
-          if (scoreB !== scoreA) return scoreB - scoreA;
-          if (a.title.length !== b.title.length) return a.title.length - b.title.length;
-          return a.title.localeCompare(b.title);
+        const scoredTasks = todoTasks.map(task => {
+          const { score, reason } = getTaskScore(task, session.energy);
+          scores.push({ id: task.id, title: task.title, score, reason });
+          return { ...task, score };
         });
+
+        sortedTodoTasks = scoredTasks.sort((a, b) => {
+          if (b.score !== a.score) return b.score - a.score;
+          return (a.createdAt || 0) - (b.createdAt || 0);
+        });
+        scores.sort((a,b) => b.score - a.score);
+        setDebugInfo({ scores });
         break;
       case 'custom':
       default:
         sortedTodoTasks = [...todoTasks].sort((a,b) => (a.createdAt || 0) - (b.createdAt || 0));
+        setDebugInfo(null); // No scores for custom mode
         break;
     }
     return [...sortedTodoTasks, ...doneTasks];
@@ -260,23 +334,31 @@ export function useTaskManager() {
           session,
         };
 
-        const result = await getAiTaskEnhancements(aiInput);
-        setAiData(result);
+        try {
+          const result = await getAiTaskEnhancements(aiInput);
+          setAiData(result);
 
-        if (result.effortSuggestions.length > 0) {
-          const updatedTasks = tasks.map(task => {
-            const suggestion = result.effortSuggestions.find(s => s.id === task.id);
-            if (suggestion && !task.effort) {
-              return { ...task, effort: suggestion.effort };
+          if (result.effortSuggestions.length > 0) {
+            let writes: { ref: any, data: any, options: any }[] = [];
+            const updatedTasks = tasks.map(task => {
+              const suggestion = result.effortSuggestions.find(s => s.id === task.id);
+              if (suggestion && !task.effort) {
+                return { ...task, effort: suggestion.effort };
+              }
+              return task;
+            });
+            
+            setTasks(updatedTasks); 
+
+            const cleanedTasks = updatedTasks.map(cleanFirestoreData);
+            const todayRef = doc(userListsCollection, today);
+            
+            if (firestore) {
+                batchWriteToFirestore(firestore, [{ ref: todayRef, data: { tasks: cleanedTasks, date: today }, options: { merge: true }}]);
             }
-            return task;
-          });
-          
-          setTasks(updatedTasks); 
-
-          const cleanedTasks = updatedTasks.map(cleanFirestoreData);
-          const todayRef = doc(userListsCollection, today);
-          setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
+          }
+        } catch (e) {
+            console.error('AI enhancement failed', e);
         }
       }
     };
@@ -284,7 +366,7 @@ export function useTaskManager() {
     const timeoutId = setTimeout(runAiEnhancement, 500); // Debounce AI call
     return () => clearTimeout(timeoutId);
 
-  }, [sortMode, tasks, session, firstTask, loading, userListsCollection, today]);
+  }, [sortMode, tasks, session, firstTask, loading, userListsCollection, today, firestore]);
 
 
   return {
@@ -301,7 +383,6 @@ export function useTaskManager() {
     loading: isUserLoading || loading,
     firstTask,
     aiData,
+    debugInfo,
   };
 }
-
-    
