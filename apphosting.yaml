@@ -1,15 +1,18 @@
 # Settings to manage and configure a Firebase App Hosting backend.
 # https://firebase.google.com/docs/app-hosting/configure
 
-# This command is run on the server to build your app.
-buildCommand: npm run build
-
-# Firebase App Hosting uses a set of build steps to build your app.
-# The "fetch" step is required to fetch your repository's code.
 buildSteps:
   - name: fetch
+  - name: setup_node
+    params:
+      version: 20
+  - name: install
+    params:
+      command: npm ci
+  - name: build
+    params:
+      command: npm run build
 
 runConfig:
-  # Increase this value if you'd like to automatically spin up
-  # more instances in response to increased traffic.
+  runtime: nodejs20
   maxInstances: 1
