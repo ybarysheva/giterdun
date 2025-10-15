@@ -5,3 +5,11 @@ runConfig:
   # Increase this value if you'd like to automatically spin up
   # more instances in response to increased traffic.
   maxInstances: 1
+
+# This command is run on the server to build your app.
+buildCommand: npm run build
+
+# Firebase App Hosting uses a set of build steps to build your app.
+# The "fetch" step is required to fetch your repository's code.
+buildSteps:
+  - name: fetch
