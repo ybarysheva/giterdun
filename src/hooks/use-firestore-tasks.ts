@@ -8,6 +8,7 @@ import { getToday } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { subDays } from 'date-fns';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { classifyTaskEffort } from '@/app/actions';
 
 // Raw type from Firestore before timestamp normalization
 type RawTask = Omit<Task, 'createdAt' | 'completedAt'> & {
@@ -118,6 +119,24 @@ export function useFirestoreTasks() {
     setTasks(prev => [...prev, taskToAdd]);
     const todayRef = doc(userListsCollection, today);
     updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanFirestoreData(taskToAdd as unknown as Record<string, unknown>)) });
+
+    if (!taskToAdd.effort) {
+      classifyTaskEffort(taskToAdd.title).then(result => {
+        if (!result || !userListsCollection) return;
+        setTasks(prev => {
+          const newTasks = prev.map(t => {
+            if (t.id !== taskToAdd.id) return t;
+            return { ...t, effort: result.effort, effortSource: 'ai' as const, effortReasons: [result.reason] };
+          });
+          const ref = doc(userListsCollection, today);
+          setDocumentNonBlocking(ref, {
+            tasks: newTasks.map(t => cleanFirestoreData(t as unknown as Record<string, unknown>)),
+            date: today,
+          }, { merge: true });
+          return newTasks;
+        });
+      });
+    }
   }, [userListsCollection, today]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
