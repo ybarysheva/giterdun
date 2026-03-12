@@ -22,7 +22,6 @@ export default function Home() {
     addCarryoverToToday,
     loading,
     firstTask,
-    skipTask,
     debugInfo,
   } = useTaskManager();
 
@@ -46,10 +45,8 @@ export default function Home() {
           <TaskList
             tasks={tasks}
             firstTaskId={firstTask?.id}
-            sortMode={sortMode}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
-            onSkipTask={skipTask}
           />
         )}
 
