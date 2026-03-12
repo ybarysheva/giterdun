@@ -22,7 +22,6 @@ export default function Home() {
     addCarryoverToToday,
     loading,
     firstTask,
-    aiData,
     debugInfo,
   } = useTaskManager();
 
@@ -48,14 +47,13 @@ export default function Home() {
             firstTaskId={firstTask?.id}
             onUpdateTask={updateTask}
             onDeleteTask={deleteTask}
-            aiReasons={sortMode === 'ai' ? aiData.topReasons : []}
           />
         )}
-        
+
         {!loading && (
-           <TaskInput onAddTask={addTask} />
+          <TaskInput onAddTask={addTask} />
         )}
-        
+
         {!loading && carryoverTasks.length > 0 && (
           <div className="mt-8">
             <CarryoverList
@@ -66,9 +64,9 @@ export default function Home() {
         )}
 
         {!loading && tasks.length === 0 && carryoverTasks.length === 0 && (
-           <div className="text-center py-16">
-             <p className="text-muted-foreground">Nothing yet — add a few things to get started.</p>
-           </div>
+          <div className="text-center py-16">
+            <p className="text-muted-foreground">Nothing yet — add a few things to get started.</p>
+          </div>
         )}
       </div>
 
@@ -96,14 +94,6 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
-              </div>
-            )}
-            {debugInfo.aiOutput && (
-              <div>
-                <p className="font-semibold mb-2">AI Output:</p>
-                <pre className="text-wrap p-2 bg-background/50 rounded text-xs">
-                  {JSON.stringify(debugInfo.aiOutput, null, 2)}
-                </pre>
               </div>
             )}
           </CardContent>

@@ -5,24 +5,17 @@ import { doc, getDoc, arrayUnion, collection, Timestamp, writeBatch } from 'fire
 import { useFirebase, useUser, useMemoFirebase } from '@/firebase';
 import { Task, Session, SortMode, Effort } from '@/lib/types';
 import { getToday } from '@/lib/utils';
-import { getAiTaskEnhancements, type AiTaskEnhancementOutput } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, differenceInDays } from 'date-fns';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
-type AiData = {
-  effortSuggestions: { id: string; effort: Effort; confidence: number; reasons: string[] }[];
-  topReasons: string[];
-};
-
 type DebugInfo = {
-  scores: { id: string, title: string, score: number, reason: string }[];
-  aiOutput?: AiTaskEnhancementOutput | null;
+  scores: { id: string; title: string; score: number; reason: string }[];
 };
 
 // Helper to remove undefined values from an object before writing to Firestore
-const cleanFirestoreData = (data: any) => {
-  const cleanedData: { [key: string]: any } = {};
+const cleanFirestoreData = (data: Record<string, unknown>) => {
+  const cleanedData: Record<string, unknown> = {};
   for (const key in data) {
     if (Object.prototype.hasOwnProperty.call(data, key) && data[key] !== undefined) {
       cleanedData[key] = data[key];
@@ -35,13 +28,12 @@ export function useTaskManager() {
   const { firestore } = useFirebase();
   const { user, isUserLoading } = useUser();
   const { toast } = useToast();
-  
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [carryoverTasks, setCarryoverTasks] = useState<Task[]>([]);
   const [session, setSession] = useState<Session>({ energy: 'med', sessionQuickWinsCompleted: 0 });
   const [sortMode, setSortMode] = useState<SortMode>('ai');
   const [loading, setLoading] = useState(true);
-  const [aiData, setAiData] = useState<AiData>({ effortSuggestions: [], topReasons: [] });
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
 
   const today = getToday();
@@ -52,74 +44,12 @@ export function useTaskManager() {
     return collection(firestore, 'users', user.uid, 'lists');
   }, [firestore, user]);
 
-  const runAiEnhancements = useCallback(async (currentTasks: Task[], currentSession: Session, currentTopTaskId?: string) => {
-    const todoTasks = currentTasks.filter(t => t.status === 'todo');
-    const tasksNeedingEffort = todoTasks.filter(t => t.effort === null && t.effortSource !== 'user');
-    
-    if (tasksNeedingEffort.length === 0 && !currentTopTaskId) {
-      setAiData({ effortSuggestions: [], topReasons: [] });
-      setDebugInfo(prev => prev ? { ...prev, aiOutput: null } : null);
-      return;
-    }
-
-    try {
-      const aiInput = {
-        tasks: todoTasks.map(t => ({
-          id: t.id,
-          title: t.title,
-          effort: t.effort,
-          flagged: t.flagged,
-          isStale: (differenceInDays(new Date(), new Date(t.originDate || t.createdAt))) >= 2,
-        })),
-        topTaskId: currentTopTaskId || '',
-        session: currentSession,
-      };
-      
-      const result = await getAiTaskEnhancements(aiInput);
-      setDebugInfo(prev => prev ? { ...prev, aiOutput: result } : { scores: [], aiOutput: result });
-      
-      // Update top reasons immediately
-      setAiData(prev => ({...prev, topReasons: result.topReasons}));
-
-      if (result.effortSuggestions.length > 0 && userListsCollection) {
-        setTasks(prevTasks => {
-          let didUpdate = false;
-          const updatedTasks = prevTasks.map(task => {
-            const suggestion = result.effortSuggestions.find(s => s.id === task.id);
-            if (suggestion && task.effort === null && task.effortSource !== 'user') {
-              didUpdate = true;
-              return { 
-                ...task, 
-                effort: suggestion.effort,
-                effortConfidence: suggestion.confidence,
-                effortReasons: suggestion.reasons,
-                effortSource: 'ai' as const
-              };
-            }
-            return task;
-          });
-          
-          if (didUpdate) {
-              const cleanedTasks = updatedTasks.map(cleanFirestoreData);
-              const todayRef = doc(userListsCollection, today);
-              setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
-              return updatedTasks;
-          }
-          return prevTasks;
-        });
-      }
-    } catch (e) {
-      console.error('AI enhancement failed', e);
-      // Optional: show a toast to the user
-    }
-  }, [userListsCollection, today]);
-
   useEffect(() => {
     if (isUserLoading || !user || !firestore || !userListsCollection) {
       setLoading(true);
       return;
-    };
-    
+    }
+
     const loadData = async () => {
       setLoading(true);
       try {
@@ -127,43 +57,52 @@ export function useTaskManager() {
         const yesterdayRef = doc(userListsCollection, yesterday);
 
         const [todaySnap, yesterdaySnap] = await Promise.all([getDoc(todayRef), getDoc(yesterdayRef)]);
-        
+
+        // Raw type from Firestore before timestamp normalization
+        type RawTask = Omit<Task, 'createdAt' | 'completedAt'> & {
+          createdAt: Timestamp | number;
+          completedAt?: Timestamp | number;
+        };
+
+        const normalizeTimestamp = (v: Timestamp | number | undefined): number | undefined =>
+          v instanceof Timestamp ? v.toMillis() : v;
+
         let todaysTasks: Task[] = [];
         if (todaySnap.exists()) {
           const todayData = todaySnap.data();
-          todaysTasks = (todayData.tasks || []).map((t: any) => ({
+          todaysTasks = (todayData.tasks || []).map((t: RawTask) => ({
             ...t,
             id: t.id || crypto.randomUUID(),
             flagged: t.flagged ?? false,
             effort: t.effort ?? null,
             isCarryover: t.isCarryover ?? false,
             originDate: t.originDate ?? t.listDate,
-            createdAt: t.createdAt instanceof Timestamp ? t.createdAt.toMillis() : t.createdAt,
-            completedAt: t.completedAt instanceof Timestamp ? t.completedAt.toMillis() : t.completedAt,
+            createdAt: normalizeTimestamp(t.createdAt) ?? Date.now(),
+            completedAt: normalizeTimestamp(t.completedAt),
           }));
         } else {
           setDocumentNonBlocking(todayRef, { date: today, tasks: [] }, { merge: false });
         }
-        
+
         if (yesterdaySnap.exists()) {
           const yesterdayData = yesterdaySnap.data();
           const carryovers = (yesterdayData.tasks || [])
-            .filter((task: Task) => task.status === 'todo')
-            .map((task: any) => ({ 
+            .filter((task: RawTask) => task.status === 'todo')
+            .map((task: RawTask) => ({
               ...task,
               flagged: task.flagged ?? false,
               isCarryover: true,
               originDate: task.originDate ?? task.listDate,
-              createdAt: task.createdAt instanceof Timestamp ? task.createdAt.toMillis() : t.createdAt,
+              createdAt: normalizeTimestamp(task.createdAt) ?? Date.now(),
             }))
             .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
-            
+
           setCarryoverTasks(carryovers);
         }
         setTasks(todaysTasks);
-      } catch (error: any) {
-        console.error("Error loading data:", error);
-        toast({ title: "Error", description: "Could not load tasks. Please try again later.", variant: "destructive" });
+      } catch (error: unknown) {
+        console.error('Error loading data:', error);
+        toast({ title: 'Error', description: 'Could not load tasks. Please try again later.', variant: 'destructive' });
       } finally {
         setLoading(false);
       }
@@ -171,18 +110,17 @@ export function useTaskManager() {
 
     loadData();
   }, [isUserLoading, firestore, user, userListsCollection, today, yesterday, toast]);
-  
+
   const addTask = useCallback((newTaskData: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate' | 'flagged'>) => {
     if (!userListsCollection) return;
 
-    const now = Date.now();
     const taskToAdd: Task = {
       ...newTaskData,
       id: crypto.randomUUID(),
       listDate: today,
       isCarryover: false,
       status: 'todo' as const,
-      createdAt: now,
+      createdAt: Date.now(),
       originDate: today,
       flagged: false,
       effortSource: newTaskData.effort ? 'user' : null,
@@ -190,92 +128,72 @@ export function useTaskManager() {
 
     const newTasks = [...tasks, taskToAdd];
     setTasks(newTasks);
-    
-    const todayRef = doc(userListsCollection, today);
-    const cleanedTask = cleanFirestoreData(taskToAdd);
-    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
-    
-    // Trigger AI enhancement non-blockingly if no effort was set by user
-    if (!taskToAdd.effort) {
-        runAiEnhancements(newTasks, session);
-    }
 
-  }, [userListsCollection, tasks, today, session, runAiEnhancements]);
+    const todayRef = doc(userListsCollection, today);
+    const cleanedTask = cleanFirestoreData(taskToAdd as unknown as Record<string, unknown>);
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
+  }, [userListsCollection, tasks, today]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
     if (!userListsCollection) return;
-    
-    let originalTitle: string | undefined;
-    let runAi = false;
+
     const newTasks = tasks.map(t => {
       if (t.id === id) {
-        originalTitle = t.title;
-
-        // If user manually changes effort, set the source
         if (updates.effort && updates.effort !== t.effort) {
           updates.effortSource = 'user';
         }
-        
-        const updatedTask = { ...t, ...updates, ...(updates.status === 'done' && !t.completedAt && { completedAt: Date.now() }) };
-        
-        // Check if AI should run after this update
-        if (updates.title && updates.title !== originalTitle && updatedTask.effortSource !== 'user') {
-            runAi = true;
-        }
-
-        return updatedTask;
+        return {
+          ...t,
+          ...updates,
+          ...(updates.status === 'done' && !t.completedAt && { completedAt: Date.now() }),
+        };
       }
       return t;
     });
     setTasks(newTasks);
 
-    const cleanedTasks = newTasks.map(cleanFirestoreData);
+    const cleanedTasks = newTasks.map(t => cleanFirestoreData(t as unknown as Record<string, unknown>));
     const todayRef = doc(userListsCollection, today);
     setDocumentNonBlocking(todayRef, { tasks: cleanedTasks, date: today }, { merge: true });
-    
-    if (runAi) {
-      runAiEnhancements(newTasks, session);
-    }
-  }, [userListsCollection, tasks, today, session, runAiEnhancements]);
+  }, [userListsCollection, tasks, today]);
 
-
-  const deleteTask = useCallback(async (id: string) => {
+  const deleteTask = useCallback((id: string) => {
     if (!userListsCollection) return;
 
     const updatedTasks = tasks.filter(t => t.id !== id);
     setTasks(updatedTasks);
-    
-    const cleanedTasks = updatedTasks.map(cleanFirestoreData);
+
+    const cleanedTasks = updatedTasks.map(t => cleanFirestoreData(t as unknown as Record<string, unknown>));
     const todayRef = doc(userListsCollection, today);
     setDocumentNonBlocking(todayRef, { tasks: cleanedTasks }, { merge: true });
   }, [userListsCollection, tasks, today]);
 
-  const addCarryoverToToday = useCallback(async (id: string) => {
+  const addCarryoverToToday = useCallback((id: string) => {
     if (!userListsCollection || !firestore) return;
     const taskToCarryOver = carryoverTasks.find(t => t.id === id);
     if (!taskToCarryOver) return;
 
-    const newTask: Task = { 
-      ...taskToCarryOver, 
-      listDate: today, 
+    const newTask: Task = {
+      ...taskToCarryOver,
+      listDate: today,
       isCarryover: true,
-      originDate: taskToCarryOver.originDate || taskToCarryOver.listDate
-    }; 
-    
+      originDate: taskToCarryOver.originDate || taskToCarryOver.listDate,
+    };
+
     setCarryoverTasks(prev => prev.filter(t => t.id !== id));
     setTasks(prev => [...prev, newTask]);
-    
+
     const todayRef = doc(userListsCollection, today);
-    const cleanedTask = cleanFirestoreData(newTask);
+    const cleanedTask = cleanFirestoreData(newTask as unknown as Record<string, unknown>);
     updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanedTask) });
   }, [userListsCollection, firestore, carryoverTasks, today]);
 
   const getTaskScore = useCallback((task: Task, energy: Session['energy']) => {
     const effortEaseMap: Record<Effort, number> = { XS: 1, S: 0.75, M: 0.3, L: 0.1 };
-    
+
     const flagScore = task.flagged ? 1 : 0;
     const effortEaseScore = task.effort ? effortEaseMap[task.effort] : 0.0;
-    
+
     const stalenessDays = differenceInDays(new Date(), new Date(task.originDate || task.createdAt));
     const isStale = stalenessDays >= 2;
     const stalenessNudge = isStale ? 0.2 : 0;
@@ -283,32 +201,31 @@ export function useTaskManager() {
     let energyFit = 0;
     let energyReason = '';
     if (task.effort) {
-        if (energy === 'low') {
-            if (task.effort === 'XS' || task.effort === 'S') { energyFit = 0.1; energyReason = 'Good for low energy. '; }
-        } else if (energy === 'high') {
-            if (task.effort === 'M' || task.effort === 'L') { energyFit = 0.1; energyReason = 'Good for high energy. '; }
-            else { energyFit = -0.1; energyReason = 'Not a high-energy task. ';}
-        }
+      if (energy === 'low') {
+        if (task.effort === 'XS' || task.effort === 'S') { energyFit = 0.1; energyReason = 'Good for low energy. '; }
+      } else if (energy === 'high') {
+        if (task.effort === 'M' || task.effort === 'L') { energyFit = 0.1; energyReason = 'Good for high energy. '; }
+        else { energyFit = -0.1; energyReason = 'Not a high-energy task. '; }
+      }
     } else {
       energyReason = 'No effort set. ';
     }
-    
+
     const totalScore = (0.45 * flagScore) + (0.35 * effortEaseScore) + (0.20 * stalenessNudge) + energyFit;
-    
     const reason = `FLAG: ${task.flagged ? 'On' : 'Off'} (${(0.45 * flagScore).toFixed(2)}) / EASE: ${task.effort || 'None'} (${(0.35 * effortEaseScore).toFixed(2)}) / STALE: ${isStale ? 'Yes' : 'No'} (${(0.20 * stalenessNudge).toFixed(2)}) / ENERGY: ${energyReason}(${energyFit.toFixed(2)})`;
-    
+
     return { score: totalScore, reason };
   }, []);
 
   const sortedTasks = useMemo(() => {
     const todoTasks = tasks.filter(t => t.status === 'todo');
-    const doneTasks = tasks.filter(t => t.status === 'done').sort((a,b) => (b.completedAt || 0) - (a.completedAt || 0));
-    
+    const doneTasks = tasks.filter(t => t.status === 'done').sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0));
+
     let sortedTodoTasks: Task[];
     const scores: DebugInfo['scores'] = [];
 
     switch (sortMode) {
-      case 'easy':
+      case 'easy': {
         const effortOrder: (Effort | null)[] = ['XS', 'S', 'M', 'L', null];
         sortedTodoTasks = [...todoTasks].sort((a, b) => {
           const effortA = effortOrder.indexOf(a.effort);
@@ -316,9 +233,10 @@ export function useTaskManager() {
           if (effortA !== effortB) return effortA - effortB;
           return a.createdAt - b.createdAt;
         });
-        setDebugInfo(prev => ({ ...prev, scores: [] }));
+        setDebugInfo(prev => prev ? { ...prev, scores: [] } : null);
         break;
-      case 'ai':
+      }
+      case 'ai': {
         const scoredTasks = todoTasks.map(task => {
           const { score, reason } = getTaskScore(task, session.energy);
           scores.push({ id: task.id, title: task.title, score, reason });
@@ -327,17 +245,17 @@ export function useTaskManager() {
 
         sortedTodoTasks = scoredTasks.sort((a, b) => {
           if (b.score !== a.score) return b.score - a.score;
-          // Tie-breakers
           if (a.title.length !== b.title.length) return a.title.length - b.title.length;
           return a.title.localeCompare(b.title);
         });
-        scores.sort((a,b) => b.score - a.score);
-        setDebugInfo(prev => ({ ...prev, scores }));
+        scores.sort((a, b) => b.score - a.score);
+        setDebugInfo(prev => prev ? { ...prev, scores } : null);
         break;
+      }
       case 'custom':
       default:
-        sortedTodoTasks = [...todoTasks].sort((a,b) => (a.createdAt || 0) - (b.createdAt || 0));
-        setDebugInfo(prev => ({ ...prev, scores: [] }));
+        sortedTodoTasks = [...todoTasks].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+        setDebugInfo(prev => prev ? { ...prev, scores: [] } : null);
         break;
     }
     return [...sortedTodoTasks, ...doneTasks];
@@ -346,32 +264,6 @@ export function useTaskManager() {
   const firstTask = useMemo(() => {
     return sortedTasks.find(t => t.status === 'todo');
   }, [sortedTasks]);
-  
-  // This effect calls the AI for top task reasons, separate from effort estimation.
-  useEffect(() => {
-    if (sortMode !== 'ai' || loading || !firstTask) {
-      if (sortMode !== 'ai') {
-        setAiData(d => ({ ...d, topReasons: [] }));
-        setDebugInfo(prev => prev ? { ...prev, aiOutput: null } : null);
-      }
-      return;
-    }
-
-    const timeoutId = setTimeout(() => runAiEnhancements(tasks, session, firstTask.id), 500); // Debounce AI call
-    return () => clearTimeout(timeoutId);
-
-  }, [sortMode, firstTask, tasks, session, loading, runAiEnhancements]);
-  
-  // Effect to re-run AI effort estimation if tasks load from Firestore without effort
-  useEffect(() => {
-    if (!loading) {
-      const tasksToProcess = tasks.filter(t => t.status === 'todo' && t.effort === null && t.effortSource !== 'user');
-      if (tasksToProcess.length > 0) {
-        runAiEnhancements(tasks, session);
-      }
-    }
-  }, [loading, tasks, session, runAiEnhancements]);
-
 
   return {
     tasks: sortedTasks,
@@ -386,7 +278,6 @@ export function useTaskManager() {
     addCarryoverToToday,
     loading: isUserLoading || loading,
     firstTask,
-    aiData,
     debugInfo,
   };
 }
