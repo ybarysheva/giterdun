@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Trash2, Edit, Flag } from 'lucide-react';
+import { MoreVertical, Trash2, Edit, Flag, SkipForward } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +21,7 @@ interface TaskItemProps {
   isFirst: boolean;
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   onDeleteTask: (id: string) => void;
+  onSkip?: () => void;
 }
 
 const effortColors: Record<Effort, string> = {
@@ -30,10 +31,10 @@ const effortColors: Record<Effort, string> = {
   L: 'bg-orange-100 text-orange-800',
 };
 
-export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItemProps) {
+export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask, onSkip }: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
-  
+
   const handleStatusChange = (checked: boolean) => {
     onUpdateTask(task.id, { status: checked ? 'done' : 'todo' });
   };
@@ -44,15 +45,13 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
 
   const handleSaveEdit = () => {
     if (editedTitle.trim() !== '' && editedTitle.trim() !== task.title) {
-        onUpdateTask(task.id, { title: editedTitle.trim() });
+      onUpdateTask(task.id, { title: editedTitle.trim() });
     }
     setIsEditing(false);
   };
-  
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSaveEdit();
-    }
+    if (e.key === 'Enter') handleSaveEdit();
     if (e.key === 'Escape') {
       setIsEditing(false);
       setEditedTitle(task.title);
@@ -76,13 +75,13 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
         />
         <div className="flex-grow">
           {isEditing ? (
-            <Input 
-                value={editedTitle}
-                onChange={(e) => setEditedTitle(e.target.value)}
-                onBlur={handleSaveEdit}
-                onKeyDown={handleKeyDown}
-                autoFocus
-                className="h-8"
+            <Input
+              value={editedTitle}
+              onChange={(e) => setEditedTitle(e.target.value)}
+              onBlur={handleSaveEdit}
+              onKeyDown={handleKeyDown}
+              autoFocus
+              className="h-8"
             />
           ) : (
             <label
@@ -99,43 +98,56 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
             </label>
           )}
         </div>
-        <div className="flex items-center gap-2">
-            {task.effort && task.status === 'todo' && (
-                <Badge variant="outline" className={cn(effortColors[task.effort], 'border-transparent')}>
-                    {task.effort}
-                </Badge>
-            )}
-        </div>
-        
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={handleFlagToggle}
-          aria-pressed={task.flagged}
-        >
-          <Flag className={cn("h-4 w-4", task.flagged ? 'text-yellow-500 fill-yellow-400' : 'text-muted-foreground/70')} />
-          <span className="sr-only">{task.flagged ? 'Unflag task' : 'Flag task'}</span>
-        </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-              <MoreVertical className="h-4 w-4" />
-              <span className="sr-only">More options</span>
+        <div className="flex items-center gap-1">
+          {task.effort && task.status === 'todo' && (
+            <Badge variant="outline" className={cn(effortColors[task.effort], 'border-transparent')}>
+              {task.effort}
+            </Badge>
+          )}
+
+          {onSkip && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-muted-foreground/70 hover:text-foreground"
+              onClick={onSkip}
+              aria-label="Try another task"
+            >
+              <SkipForward className="h-4 w-4" />
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setIsEditing(true)}>
-              <Edit className="mr-2 h-4 w-4" />
-              <span>Edit</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onDeleteTask(task.id)} className="text-red-600">
-              <Trash2 className="mr-2 h-4 w-4" />
-              <span>Delete</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={handleFlagToggle}
+            aria-pressed={task.flagged}
+          >
+            <Flag className={cn("h-4 w-4", task.flagged ? 'text-yellow-500 fill-yellow-400' : 'text-muted-foreground/70')} />
+            <span className="sr-only">{task.flagged ? 'Unflag task' : 'Flag task'}</span>
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">More options</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setIsEditing(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                <span>Edit</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onDeleteTask(task.id)} className="text-red-600">
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>Delete</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </CardContent>
     </Card>
   );
