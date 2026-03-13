@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef, useState } from 'react';
 import { useTaskManager } from '@/hooks/use-tasks-manager';
 import { Header } from '@/components/app/Header';
 import { TaskInput } from '@/components/app/TaskInput';
@@ -7,6 +8,7 @@ import { TaskList } from '@/components/app/TaskList';
 import { CarryoverList } from '@/components/app/CarryoverList';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Task } from '@/lib/types';
 
 export default function Home() {
   const {
@@ -24,6 +26,32 @@ export default function Home() {
     firstTask,
     debugInfo,
   } = useTaskManager();
+
+  const [lastChange, setLastChange] = useState<{ time: Date; what: string } | null>(null);
+  const prevTasksRef = useRef<Task[]>([]);
+
+  useEffect(() => {
+    const prev = prevTasksRef.current;
+    if (prev.length === 0 && tasks.length === 0) { prevTasksRef.current = tasks; return; }
+
+    let what = 'task updated';
+    if (tasks.length > prev.length) {
+      what = 'task added';
+    } else if (tasks.length < prev.length) {
+      what = 'task deleted';
+    } else {
+      for (const task of tasks) {
+        const old = prev.find(t => t.id === task.id);
+        if (!old) continue;
+        if (old.status === 'todo' && task.status === 'done') { what = 'task completed'; break; }
+        if (task.status === 'todo' && old.status === 'done') { what = 'task uncompleted'; break; }
+        if (!old.effort && task.effort && task.effortSource === 'ai') { what = 'effort classified by AI'; break; }
+      }
+    }
+
+    setLastChange({ time: new Date(), what });
+    prevTasksRef.current = tasks;
+  }, [tasks]);
 
   return (
     <main className="container mx-auto max-w-lg p-4 md:p-8 font-body">
@@ -76,6 +104,12 @@ export default function Home() {
             <CardTitle>Debug Panel</CardTitle>
           </CardHeader>
           <CardContent className="font-mono text-xs space-y-4">
+            {lastChange && (
+              <div className="border-b border-border pb-2">
+                <p>Last change: {lastChange.time.toLocaleTimeString()}</p>
+                <p>What: {lastChange.what}</p>
+              </div>
+            )}
             <div>
               <p>Energy: {session.energy}</p>
               <p>Sort Mode: {sortMode}</p>
