@@ -33,7 +33,7 @@ const effortColors: Record<Effort, string> = {
 export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
-  
+
   const handleStatusChange = (checked: boolean) => {
     onUpdateTask(task.id, { status: checked ? 'done' : 'todo' });
   };
@@ -48,7 +48,7 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
     }
     setIsEditing(false);
   };
-  
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleSaveEdit();
@@ -76,7 +76,7 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
         />
         <div className="flex-grow">
           {isEditing ? (
-            <Input 
+            <Input
                 value={editedTitle}
                 onChange={(e) => setEditedTitle(e.target.value)}
                 onBlur={handleSaveEdit}
@@ -106,7 +106,7 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
                 </Badge>
             )}
         </div>
-        
+
         <Button
           variant="ghost"
           size="icon"

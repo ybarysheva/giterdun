@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import type { Task } from '@/lib/types';
 import { TaskItem } from './TaskItem';
 
