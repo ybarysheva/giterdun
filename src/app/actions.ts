@@ -10,7 +10,7 @@ export async function classifyTaskEffort(
 ): Promise<{ effort: Effort; reason: string } | null> {
   try {
     const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 128,
       messages: [
         {
@@ -33,7 +33,8 @@ Effort levels:
     const block = response.content[0];
     if (block.type !== 'text') return null;
 
-    const parsed = JSON.parse(block.text.trim());
+    const raw = block.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const parsed = JSON.parse(raw);
     const validEfforts: Effort[] = ['XS', 'S', 'M', 'L'];
     if (!validEfforts.includes(parsed.effort)) return null;
 
