@@ -1,11 +1,19 @@
 'use client';
 
 import React, { useMemo, type ReactNode } from 'react';
-import { FirebaseProvider } from '@/firebase/provider';
+import { FirebaseProvider, useUser } from '@/firebase/provider';
 import { initializeFirebase } from '@/firebase';
+import { LoginScreen } from '@/components/app/LoginScreen';
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
+}
+
+function AuthGate({ children }: { children: ReactNode }) {
+  const { user, isUserLoading } = useUser();
+  if (isUserLoading) return null;
+  if (!user) return <LoginScreen />;
+  return <>{children}</>;
 }
 
 export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
@@ -20,7 +28,7 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
       auth={firebaseServices.auth}
       firestore={firebaseServices.firestore}
     >
-      {children}
+      <AuthGate>{children}</AuthGate>
     </FirebaseProvider>
   );
 }

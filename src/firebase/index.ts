@@ -2,7 +2,7 @@
 
 import { firebaseConfig } from '@/firebase/config';
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
 
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
@@ -21,11 +21,6 @@ export function initializeFirebase() {
       }
     });
     
-    // Sign in anonymously
-    signInAnonymously(auth).catch((error) => {
-      console.error("Anonymous sign-in failed:", error);
-    });
-
     return { firebaseApp: app, auth, firestore };
   }
   
@@ -44,3 +39,4 @@ export * from './firestore/use-doc';
 export * from './non-blocking-updates';
 export * from './errors';
 export * from './error-emitter';
+export { GoogleAuthProvider };
