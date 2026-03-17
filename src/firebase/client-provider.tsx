@@ -11,8 +11,7 @@ interface FirebaseClientProviderProps {
 
 function AuthGate({ children }: { children: ReactNode }) {
   const { user, isUserLoading } = useUser();
-  if (isUserLoading) return null;
-  if (!user) return <LoginScreen />;
+  if (isUserLoading || !user) return <LoginScreen />;
   return <>{children}</>;
 }
 

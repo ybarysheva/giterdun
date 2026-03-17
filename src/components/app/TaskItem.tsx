@@ -21,6 +21,8 @@ interface TaskItemProps {
   isFirst: boolean;
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   onDeleteTask: (id: string) => void;
+  onSelectTask?: (id: string) => void;
+  isSelected?: boolean;
 }
 
 const effortColors: Record<Effort, string> = {
@@ -30,7 +32,7 @@ const effortColors: Record<Effort, string> = {
   L: 'bg-orange-100 text-orange-800',
 };
 
-export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItemProps) {
+export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask, onSelectTask, isSelected }: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
 
@@ -64,31 +66,36 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
       className={cn(
         'shadow-sm transition-all duration-300',
         task.status === 'done' ? 'bg-secondary' : 'bg-card',
-        isFirst && task.status === 'todo' && 'border-primary border-2'
+        isFirst && task.status === 'todo' && 'border-primary border-2',
+        isSelected && 'ring-2 ring-primary ring-offset-1',
+        onSelectTask && 'cursor-pointer'
       )}
+      onClick={() => onSelectTask?.(task.id)}
     >
       <CardContent className="p-3 flex items-center gap-3">
-        <Checkbox
-          id={`task-${task.id}`}
-          checked={task.status === 'done'}
-          onCheckedChange={handleStatusChange}
-          aria-label={`Mark task "${task.title}" as ${task.status === 'done' ? 'not done' : 'done'}`}
-        />
-        <div className="flex-grow">
+        <div onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            id={`task-${task.id}`}
+            checked={task.status === 'done'}
+            onCheckedChange={handleStatusChange}
+            aria-label={`Mark task "${task.title}" as ${task.status === 'done' ? 'not done' : 'done'}`}
+          />
+        </div>
+        <div className="flex-grow min-w-0">
           {isEditing ? (
             <Input
                 value={editedTitle}
                 onChange={(e) => setEditedTitle(e.target.value)}
                 onBlur={handleSaveEdit}
                 onKeyDown={handleKeyDown}
+                onClick={(e) => e.stopPropagation()}
                 autoFocus
                 className="h-8"
             />
           ) : (
-            <label
-              htmlFor={`task-${task.id}`}
+            <span
               className={cn(
-                'transition-colors',
+                'transition-colors block truncate',
                 task.status === 'done'
                   ? 'text-muted-foreground line-through'
                   : 'text-card-foreground',
@@ -96,10 +103,10 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
               )}
             >
               {task.title}
-            </label>
+            </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
             {task.effort && task.status === 'todo' && (
                 <Badge variant="outline" className={cn(effortColors[task.effort], 'border-transparent')}>
                     {task.effort}
@@ -111,31 +118,33 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask }: TaskItem
           variant="ghost"
           size="icon"
           className="h-8 w-8 shrink-0"
-          onClick={handleFlagToggle}
+          onClick={(e) => { e.stopPropagation(); handleFlagToggle(); }}
           aria-pressed={task.flagged}
         >
           <Flag className={cn("h-4 w-4", task.flagged ? 'text-yellow-500 fill-yellow-400' : 'text-muted-foreground/70')} />
           <span className="sr-only">{task.flagged ? 'Unflag task' : 'Flag task'}</span>
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-              <MoreVertical className="h-4 w-4" />
-              <span className="sr-only">More options</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => setIsEditing(true)}>
-              <Edit className="mr-2 h-4 w-4" />
-              <span>Edit</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onDeleteTask(task.id)} className="text-red-600">
-              <Trash2 className="mr-2 h-4 w-4" />
-              <span>Delete</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">More options</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => setIsEditing(true)}>
+                <Edit className="mr-2 h-4 w-4" />
+                <span>Edit</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onDeleteTask(task.id)} className="text-red-600">
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>Delete</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </CardContent>
     </Card>
   );
