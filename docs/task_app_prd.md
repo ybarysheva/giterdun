@@ -1,16 +1,15 @@
-
 # Task App – Product Requirements Document
 
 ## Overview
 
-This application is a task management system built around hierarchical tasks.
+A calm, minimal task management app designed to help users focus on what to work on today.
 
-Users organize work as **tasks and subtasks**. A larger effort is represented as a task containing subtasks.
+Users add tasks for the day, optionally estimate effort, and let the app (or an AI) suggest what to tackle first based on their current energy level.
 
-The application has two primary interfaces:
+The app has two primary interfaces:
 
-- **List View** – used to manage and complete tasks.
-- **Canvas View** – displays top-level tasks spatially so users can visually organize areas of work.
+- **List View** – daily task list; the main interface for adding, completing, and managing tasks.
+- **Canvas View** – displays top-level tasks spatially so users can visually organize larger areas of work. *(planned)*
 
 Each user has their own private task data.
 
@@ -18,11 +17,9 @@ Each user has their own private task data.
 
 # Users
 
-The system supports user accounts.
+The system supports user accounts via Google OAuth (Firebase Authentication).
 
-Each user has their own dataset.
-
-Tasks belong to a single user and cannot be accessed by other users.
+Each user has their own dataset. Tasks belong to a single user and cannot be accessed by other users.
 
 There is no collaboration or shared data in the MVP.
 
@@ -32,9 +29,9 @@ There is no collaboration or shared data in the MVP.
 
 ## Task
 
-Tasks are the only object type in the system.
+Tasks are the primary object in the system. A task represents a single unit of work for a given day.
 
-Tasks may contain subtasks recursively.
+Tasks may contain subtasks recursively *(subtasks planned, not yet implemented)*.
 
 A task can represent:
 
@@ -46,54 +43,102 @@ A task can represent:
 
 # Task Schema
 
-| Field | Description |
-|------|-------------|
-| id | unique task id |
-| userId | owner of the task |
-| title | task title |
-| description | optional task description |
-| status | todo or done |
-| parentTaskId | parent task id (nullable) |
-| depth | nesting level |
-| order | ordering among sibling tasks |
-| size | optional effort estimate |
-| canvasPositionX | x coordinate for top-level tasks |
-| canvasPositionY | y coordinate for top-level tasks |
-| createdAt | timestamp |
-| updatedAt | timestamp |
-| deletedAt | nullable soft delete timestamp |
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | unique task id |
+| userId | string | owner of the task |
+| title | string | task title |
+| description | string? | optional notes |
+| status | `todo` \| `done` | completion status |
+| effort | `XS` \| `S` \| `M` \| `L` \| null | estimated effort |
+| effortSource | `ai` \| `user` \| null | who set the effort |
+| effortConfidence | number? | AI confidence score |
+| effortReasons | string[]? | AI reasoning for effort estimate |
+| flagged | boolean | user-marked priority |
+| listDate | string (YYYY-MM-DD) | the day this task belongs to |
+| isCarryover | boolean | carried over from a previous day |
+| originDate | string? | original date if carried over |
+| parentTaskId | string? | parent task id (nullable) — for subtasks |
+| depth | number? | nesting level |
+| order | number? | ordering among sibling tasks |
+| canvasPositionX | number? | x coordinate for canvas view |
+| canvasPositionY | number? | y coordinate for canvas view |
+| createdAt | number | timestamp (ms) |
+| completedAt | number? | timestamp when marked done |
+| deletedAt | number? | soft delete timestamp |
 
-### Field Rules
+### Effort Values
 
-Top-level tasks:
+| Value | Meaning |
+|-------|---------|
+| XS | ~5 minutes |
+| S | ~10 minutes |
+| M | ~25 minutes |
+| L | ~1 hour |
 
-parentTaskId = null  
-depth = 0
-
-Subtasks:
-
-parentTaskId = id  
-depth >= 1
-
-Canvas positions apply only to top-level tasks.
+Effort can be set manually by the user or automatically classified by AI when a task is created.
 
 ---
 
-# Core Features (MVP)
+# Core Features (Current)
+
+## Daily Task List
+
+Tasks are scoped to a specific date (`listDate`). On load the app shows today's tasks.
 
 Users can:
 
-- create task
-- create subtask
+- add a task (with optional inline effort shorthand: `5m` → XS, `10m` → S, `25m` → M, `1h` → L)
 - edit task title
-- edit task description
-- mark task complete
-- delete task
-- open task detail
+- edit task description (via detail panel)
+- set effort (XS / S / M / L)
+- flag a task as priority
+- mark task complete / incomplete
+- delete a task
+- open task detail panel
 
-Deleting a task deletes its subtasks.
+## Task Detail Panel
 
-Moving tasks between parents is **not supported in the MVP**.
+Clicking a task opens a detail panel showing full task information.
+
+- **Desktop:** right sidebar panel alongside the task list
+- **Mobile:** bottom sheet that slides up from the bottom
+
+The panel supports:
+
+- editing title inline
+- editing notes (description)
+- setting effort
+- toggling flag
+- toggling completion status
+
+## Carryover Tasks
+
+Tasks from the previous day that were not completed appear in a "Carryover" section.
+
+Users can add individual carryover tasks to today's list.
+
+## AI Effort Classification
+
+When a new task is created without an explicit effort tag, the app sends the task title to Claude (Haiku) to classify effort automatically.
+
+Classification happens asynchronously and does not block task creation.
+
+`effortSource` is set to `"ai"` when classified automatically, `"user"` when set manually.
+
+## Sorting
+
+Three sort modes available in the header:
+
+| Mode | Behavior |
+|------|----------|
+| Pick for Me | AI scoring based on energy level, effort, flag, and recency |
+| Easy First | Sort by effort (XS → S → M → L) |
+| Custom | Original creation order |
+
+## Energy Level
+
+Users set their current energy level (low / med / high) in the header. This influences the "Pick for Me" sort — high energy surfaces larger tasks, low energy surfaces quick wins.
 
 ---
 
@@ -101,147 +146,97 @@ Moving tasks between parents is **not supported in the MVP**.
 
 ## List View
 
-Primary interface for task management.
+Primary interface. Shows today's tasks with sort controls and energy selector in the header.
 
-Displays tasks as a nested hierarchy.
+The first task in "Pick for Me" mode is highlighted as the recommended next action.
 
-Capabilities:
+## Task Detail Panel
 
-- display nested tasks
-- expand and collapse subtasks
-- create tasks
-- create subtasks
-- edit tasks
-- complete tasks
-- delete tasks
+Accessible from any task in the list. Implemented as:
 
----
+- desktop: right sidebar (320px), list shifts to two-column layout
+- mobile: fixed bottom sheet with drag handle and backdrop
 
-## Canvas View
+## Canvas View *(planned)*
 
-Displays tasks where:
-
-parentTaskId = null
-
-Each top-level task appears as a draggable card.
+Displays top-level tasks (no `parentTaskId`) as draggable cards on a freeform canvas.
 
 Capabilities:
-
-- drag cards to reposition tasks
-- pan the canvas
-- zoom the canvas
-- cards may overlap
+- drag cards to reposition
+- pan and zoom the canvas
+- clicking a card opens the task detail panel
 
 Subtasks do not appear on the canvas.
-
-Clicking a card opens the task detail view.
-
----
-
-# Task Detail View
-
-Opening a task shows:
-
-- title
-- description
-- subtasks
-
-Users can:
-
-- edit title
-- edit description
-- add subtasks
-- complete subtasks
-- delete subtasks
-
-The detail view may be implemented as a drawer or modal.
-
----
-
-# Task Size Field
-
-Tasks include an optional field:
-
-size
-
-Possible values:
-
-tiny  
-small  
-medium  
-large
-
-This field represents estimated effort.
-
-The MVP does **not automatically compute task size**.
-
-Future versions may populate this field using an LLM.
-
-Task creation must not depend on AI services.
 
 ---
 
 # Architecture
 
-Frontend
-- React
+**Frontend**
+- Next.js 15 (App Router)
+- React 18
 - TypeScript
+- Tailwind CSS
+- Radix UI component primitives
 
-Backend
-- API routes
+**Backend**
+- Firebase Firestore (real-time database, offline persistence)
+- Firebase Authentication (Google OAuth)
+- Next.js Server Actions (AI classification)
+- Anthropic Claude API (effort classification + sort scoring)
 
-Database
-- persistent database storing users and tasks
-
-Hosting
+**Hosting**
 - Vercel
 
-All task queries must be scoped by:
+**Data structure**
 
-task.userId
+```
+users/{uid}/lists/{YYYY-MM-DD}/tasks/{taskId}
+```
+
+All task queries are scoped by `userId` via Firestore security rules.
 
 ---
 
 # Non-Goals for MVP
 
-Do not implement:
-
 - moving tasks between parents
 - recurring tasks
 - calendar integration
-- notifications
-- collaboration
-- tagging
-- filtering
-- attachments
-- AI task planning
-- mobile-specific UI
+- push notifications
+- collaboration / shared tasks
+- tagging or filtering
+- file attachments
+- subtasks *(schema supports it, UI not yet built)*
 
 ---
 
 # Future Features
 
-Possible future features include:
-
+- subtask UI (nested list, expand/collapse)
 - moving tasks between parents
+- canvas view
 - recurring tasks
 - calendar integration
-- LLM-based task size estimation
-- task filtering
-- tagging
+- task filtering and tagging
 - collaboration
-- canvas improvements
+- canvas improvements (grouping, zooming)
 
 ---
 
-# Implementation Order
+# Implementation Status
 
-1. user authentication
-2. task database schema
-3. task CRUD API
-4. nested list UI
-5. task detail view
-6. canvas rendering for top-level tasks
-7. card dragging
-8. canvas pan and zoom
-9. data persistence
+| Feature | Status |
+|---------|--------|
+| Google auth | ✅ done |
+| Daily task list | ✅ done |
+| Task CRUD | ✅ done |
+| Effort field (XS/S/M/L) | ✅ done |
+| AI effort classification | ✅ done |
+| Flag / priority | ✅ done |
+| Carryover tasks | ✅ done |
+| Energy level | ✅ done |
+| Sort modes (custom / easy / AI) | ✅ done |
+| Task detail panel (desktop + mobile) | ✅ done |
+| Subtask UI | ⬜ planned |
+| Canvas view | ⬜ planned |
