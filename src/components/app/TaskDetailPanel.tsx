@@ -1,34 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { Task, Effort } from '@/lib/types';
+import type { Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { X, Flag, Check } from 'lucide-react';
+import { X, Check } from 'lucide-react';
 
 interface TaskDetailPanelProps {
   task: Task | null;
   onClose: () => void;
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
 }
-
-const effortOptions: Effort[] = ['XS', 'S', 'M', 'L'];
-
-const effortColors: Record<Effort, string> = {
-  XS: 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200',
-  S: 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200',
-  M: 'bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200',
-  L: 'bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200',
-};
-
-const effortLabels: Record<Effort, string> = {
-  XS: 'XS ~5m',
-  S: 'S ~10m',
-  M: 'M ~25m',
-  L: 'L ~1h',
-};
 
 function PanelContent({
   task,
@@ -72,17 +56,6 @@ function PanelContent({
     }
   };
 
-  const handleEffortClick = (effort: Effort) => {
-    onUpdateTask(task.id, {
-      effort: task.effort === effort ? null : effort,
-      effortSource: 'user',
-    });
-  };
-
-  const handleFlagToggle = () => {
-    onUpdateTask(task.id, { flagged: !task.flagged });
-  };
-
   const handleStatusToggle = () => {
     onUpdateTask(task.id, { status: task.status === 'done' ? 'todo' : 'done' });
   };
@@ -122,44 +95,6 @@ function PanelContent({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {/* Effort */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Effort</p>
-          <div className="flex flex-wrap gap-2">
-            {effortOptions.map((effort) => (
-              <button
-                key={effort}
-                onClick={() => handleEffortClick(effort)}
-                className={cn(
-                  'px-3 py-1 rounded-full text-sm border transition-all',
-                  task.effort === effort
-                    ? cn(effortColors[effort], 'ring-2 ring-offset-1 ring-current font-medium')
-                    : cn(effortColors[effort], 'opacity-60')
-                )}
-              >
-                {effortLabels[effort]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Flag */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Priority</p>
-          <button
-            onClick={handleFlagToggle}
-            className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all',
-              task.flagged
-                ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
-                : 'bg-muted/40 border-border text-muted-foreground hover:bg-muted'
-            )}
-          >
-            <Flag className={cn('h-4 w-4', task.flagged ? 'text-yellow-500 fill-yellow-400' : '')} />
-            {task.flagged ? 'Flagged' : 'Flag this task'}
-          </button>
-        </div>
-
         {/* Description */}
         <div>
           <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Notes</p>
@@ -172,18 +107,6 @@ function PanelContent({
             className="w-full text-sm rounded-lg border border-input bg-background px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
           />
         </div>
-
-        {/* Meta */}
-        {task.effortSource === 'ai' && task.effortReasons && task.effortReasons.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1 uppercase tracking-wide">AI Reasoning</p>
-            <ul className="text-xs text-muted-foreground space-y-0.5">
-              {task.effortReasons.map((r, i) => (
-                <li key={i}>• {r}</li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </div>
   );

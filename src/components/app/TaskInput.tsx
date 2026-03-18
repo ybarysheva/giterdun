@@ -2,22 +2,14 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import type { Task, Effort } from '@/lib/types';
+import type { Task } from '@/lib/types';
 import { Plus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 
 interface TaskInputProps {
-  onAddTask: (task: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate' | 'flagged'>) => void;
+  onAddTask: (task: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => void;
 }
-
-const effortMap: { [key: string]: Effort } = {
-  '5m': 'XS',
-  '10m': 'S',
-  '25m': 'M',
-  '1h': 'L',
-};
-const effortRegex = /\b(5m|10m|25m|1h)\b/gi;
 
 export function TaskInput({ onAddTask }: TaskInputProps) {
   const [text, setText] = useState('');
@@ -25,18 +17,8 @@ export function TaskInput({ onAddTask }: TaskInputProps) {
   const handleAdd = () => {
     if (text.trim() === '') return;
 
-    let title = text.trim();
-    let effort: Effort | null = null;
-
-    const effortMatch = title.match(effortRegex);
-    if (effortMatch) {
-      effort = effortMap[effortMatch[0].toLowerCase()];
-      title = title.replace(effortRegex, '').trim();
-    }
-    
-    // The "!!" parsing is removed. Flagging is now handled by a UI button.
-    
-    onAddTask({ title, effort });
+    const title = text.trim();
+    onAddTask({ title });
     setText('');
   };
 

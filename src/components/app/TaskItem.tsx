@@ -1,12 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import type { Task, Effort } from '@/lib/types';
+import type { Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Badge } from '@/components/ui/badge';
-import { MoreVertical, Trash2, Edit, Flag } from 'lucide-react';
+import { MoreVertical, Trash2, Edit } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,23 +24,19 @@ interface TaskItemProps {
   isSelected?: boolean;
 }
 
-const effortColors: Record<Effort, string> = {
-  XS: 'bg-green-100 text-green-800',
-  S: 'bg-blue-100 text-blue-800',
-  M: 'bg-yellow-100 text-yellow-800',
-  L: 'bg-orange-100 text-orange-800',
-};
-
-export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask, onSelectTask, isSelected }: TaskItemProps) {
+export function TaskItem({
+  task,
+  isFirst,
+  onUpdateTask,
+  onDeleteTask,
+  onSelectTask,
+  isSelected,
+}: TaskItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
 
   const handleStatusChange = (checked: boolean) => {
     onUpdateTask(task.id, { status: checked ? 'done' : 'todo' });
-  };
-
-  const handleFlagToggle = () => {
-    onUpdateTask(task.id, { flagged: !task.flagged });
   };
 
   const handleSaveEdit = () => {
@@ -106,24 +101,6 @@ export function TaskItem({ task, isFirst, onUpdateTask, onDeleteTask, onSelectTa
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-            {task.effort && task.status === 'todo' && (
-                <Badge variant="outline" className={cn(effortColors[task.effort], 'border-transparent')}>
-                    {task.effort}
-                </Badge>
-            )}
-        </div>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0"
-          onClick={(e) => { e.stopPropagation(); handleFlagToggle(); }}
-          aria-pressed={task.flagged}
-        >
-          <Flag className={cn("h-4 w-4", task.flagged ? 'text-yellow-500 fill-yellow-400' : 'text-muted-foreground/70')} />
-          <span className="sr-only">{task.flagged ? 'Unflag task' : 'Flag task'}</span>
-        </Button>
 
         <div onClick={(e) => e.stopPropagation()}>
           <DropdownMenu>
