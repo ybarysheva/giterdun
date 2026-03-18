@@ -22,10 +22,6 @@
             "type": "string"
           }
         },
-        "flagged": {
-          "type": "boolean",
-          "description": "Indicates whether the task is flagged as important."
-        },
         "status": {
           "type": "string",
           "description": "The current status of the task ('todo' or 'done').",
@@ -66,7 +62,6 @@
       "required": [
         "id",
         "title",
-        "flagged",
         "status",
         "listDate",
         "createdAt",

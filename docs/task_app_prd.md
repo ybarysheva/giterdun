@@ -54,7 +54,6 @@ A task can represent:
 | effortSource | `ai` \| `user` \| null | who set the effort |
 | effortConfidence | number? | AI confidence score |
 | effortReasons | string[]? | AI reasoning for effort estimate |
-| flagged | boolean | user-marked priority |
 | listDate | string (YYYY-MM-DD) | the day this task belongs to |
 | isCarryover | boolean | carried over from a previous day |
 | originDate | string? | original date if carried over |

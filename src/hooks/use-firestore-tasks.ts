@@ -99,7 +99,7 @@ export function useFirestoreTasks() {
     loadData();
   }, [isUserLoading, firestore, user, userListsCollection, today, yesterday, toast]);
 
-  const addTask = useCallback((newTaskData: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate' | 'flagged'>) => {
+  const addTask = useCallback((newTaskData: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => {
     if (!userListsCollection) return;
 
     const taskToAdd: Task = {
@@ -110,7 +110,6 @@ export function useFirestoreTasks() {
       status: 'todo',
       createdAt: Date.now(),
       originDate: today,
-      flagged: false,
       effortSource: newTaskData.effort ? 'user' : null,
     };
 
