@@ -5,7 +5,7 @@ export type Effort = 'XS' | 'S' | 'M' | 'L';
 export type Task = {
   id: string;
   title: string;
-  effort: Effort | null;
+  effort?: Effort | null;
   status: 'todo' | 'done';
   listDate: string; // YYYY-MM-DD
   isCarryover: boolean;
