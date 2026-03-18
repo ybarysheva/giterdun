@@ -64,7 +64,6 @@ export function useFirestoreTasks() {
           todaysTasks = (todaySnap.data().tasks || []).map((t: RawTask) => ({
             ...t,
             id: t.id || crypto.randomUUID(),
-            flagged: t.flagged ?? false,
             effort: t.effort ?? null,
             isCarryover: t.isCarryover ?? false,
             originDate: t.originDate ?? t.listDate,
@@ -80,7 +79,6 @@ export function useFirestoreTasks() {
             .filter((t: RawTask) => t.status === 'todo')
             .map((t: RawTask) => ({
               ...t,
-              flagged: t.flagged ?? false,
               isCarryover: true,
               originDate: t.originDate ?? t.listDate,
               createdAt: normalizeTimestamp(t.createdAt) ?? Date.now(),
