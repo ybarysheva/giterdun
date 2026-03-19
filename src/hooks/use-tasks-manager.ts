@@ -9,7 +9,7 @@ export function useTaskManager() {
 
   const getSubtasksForTask = (taskId: string): Task[] => {
     return firestoreTasks.tasks
-      .filter(t => t.parentTaskId === taskId && t.listDate === firestoreTasks.tasks.find(task => task.id === taskId)?.listDate)
+      .filter(t => t.parentTaskId === taskId)
       .sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
   };
 
