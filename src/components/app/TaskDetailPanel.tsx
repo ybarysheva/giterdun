@@ -10,6 +10,8 @@ import { X, Check } from 'lucide-react';
 import { SubtaskInput } from './SubtaskInput';
 import { SubtaskList } from './SubtaskList';
 
+// Remove unused Badge import
+
 interface TaskDetailPanelProps {
   task: Task | null;
   onClose: () => void;
