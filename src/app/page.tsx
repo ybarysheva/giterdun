@@ -18,6 +18,8 @@ export default function Home() {
     updateTask,
     deleteTask,
     addCarryoverToToday,
+    addSubtask,
+    getSubtasksForTask,
     loading,
     firstTask,
   } = useTaskManager();
@@ -25,12 +27,19 @@ export default function Home() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
+  const selectedTaskSubtasks = selectedTask ? getSubtasksForTask(selectedTask.id) : [];
 
   const handleSelectTask = (id: string) => {
     setSelectedTaskId((prev) => (prev === id ? null : id));
   };
 
   const handleClosePanel = () => setSelectedTaskId(null);
+
+  const handleAddSubtask = (title: string) => {
+    if (selectedTask) {
+      addSubtask(selectedTask.id, title);
+    }
+  };
 
   return (
     <main className={cn(
@@ -88,6 +97,9 @@ export default function Home() {
               task={selectedTask}
               onClose={handleClosePanel}
               onUpdateTask={updateTask}
+              onDeleteTask={deleteTask}
+              subtasks={selectedTaskSubtasks}
+              onAddSubtask={handleAddSubtask}
             />
           </div>
         )}
@@ -98,6 +110,9 @@ export default function Home() {
         task={selectedTask}
         onClose={handleClosePanel}
         onUpdateTask={updateTask}
+        onDeleteTask={deleteTask}
+        subtasks={selectedTaskSubtasks}
+        onAddSubtask={handleAddSubtask}
       />
     </main>
   );

@@ -7,21 +7,32 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { X, Check } from 'lucide-react';
+import { SubtaskInput } from './SubtaskInput';
+import { SubtaskList } from './SubtaskList';
 
 interface TaskDetailPanelProps {
   task: Task | null;
   onClose: () => void;
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
+  onDeleteTask?: (id: string) => void;
+  subtasks: Task[];
+  onAddSubtask: (title: string) => void;
 }
 
 function PanelContent({
   task,
   onClose,
   onUpdateTask,
+  onDeleteTask,
+  subtasks,
+  onAddSubtask,
 }: {
   task: Task;
   onClose: () => void;
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
+  onDeleteTask?: (id: string) => void;
+  subtasks: Task[];
+  onAddSubtask: (title: string) => void;
 }) {
   const [titleValue, setTitleValue] = useState(task.title);
   const [descValue, setDescValue] = useState(task.description ?? '');
@@ -107,12 +118,25 @@ function PanelContent({
             className="w-full text-sm rounded-lg border border-input bg-background px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
           />
         </div>
+
+        {/* Subtasks */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Subtasks</p>
+          <div className="space-y-3">
+            <SubtaskList
+              subtasks={subtasks}
+              onToggleSubtask={(id, status) => onUpdateTask(id, { status })}
+              onDeleteSubtask={(id) => onDeleteTask?.(id)}
+            />
+            <SubtaskInput onAddSubtask={onAddSubtask} />
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-export function TaskDetailPanel({ task, onClose, onUpdateTask }: TaskDetailPanelProps) {
+export function TaskDetailPanel({ task, onClose, onUpdateTask, onDeleteTask, subtasks, onAddSubtask }: TaskDetailPanelProps) {
   const isOpen = task !== null;
 
   return (
@@ -138,7 +162,7 @@ export function TaskDetailPanel({ task, onClose, onUpdateTask }: TaskDetailPanel
           <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
         {task && (
-          <PanelContent task={task} onClose={onClose} onUpdateTask={onUpdateTask} />
+          <PanelContent task={task} onClose={onClose} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} subtasks={subtasks} onAddSubtask={onAddSubtask} />
         )}
       </div>
 
@@ -152,11 +176,11 @@ export function TaskDetailPanel({ task, onClose, onUpdateTask }: TaskDetailPanel
  * Desktop-only inline panel content (rendered in the right column).
  * Separate from the mobile bottom sheet to avoid double-rendering in both layouts.
  */
-export function TaskDetailPanelDesktop({ task, onClose, onUpdateTask }: TaskDetailPanelProps) {
+export function TaskDetailPanelDesktop({ task, onClose, onUpdateTask, onDeleteTask, subtasks, onAddSubtask }: TaskDetailPanelProps) {
   if (!task) return null;
   return (
     <div className="bg-card border rounded-xl shadow-sm overflow-hidden h-full">
-      <PanelContent task={task} onClose={onClose} onUpdateTask={onUpdateTask} />
+      <PanelContent task={task} onClose={onClose} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} subtasks={subtasks} onAddSubtask={onAddSubtask} />
     </div>
   );
 }

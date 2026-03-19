@@ -189,6 +189,26 @@ export function useFirestoreTasks() {
     updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanFirestoreData(newTask as unknown as Record<string, unknown>)) });
   }, [userListsCollection, carryoverTasks, today]);
 
+  const addSubtask = useCallback((parentTaskId: string, title: string) => {
+    if (!userListsCollection || !title.trim()) return;
+
+    const subtask: Task = {
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      status: 'todo',
+      listDate: today,
+      isCarryover: false,
+      createdAt: Date.now(),
+      originDate: today,
+      parentTaskId,
+      depth: 1,
+    };
+
+    setTasks(prev => [...prev, subtask]);
+    const todayRef = doc(userListsCollection, today);
+    updateDocumentNonBlocking(todayRef, { tasks: arrayUnion(cleanFirestoreData(subtask as unknown as Record<string, unknown>)) });
+  }, [userListsCollection, today]);
+
   return {
     tasks,
     setTasks,
@@ -198,5 +218,6 @@ export function useFirestoreTasks() {
     updateTask,
     deleteTask,
     addCarryoverToToday,
+    addSubtask,
   };
 }
