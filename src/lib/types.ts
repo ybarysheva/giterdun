@@ -6,6 +6,7 @@ export type Task = {
   id: string;
   title: string;
   effort?: Effort | null;
+  effortSource?: 'ai' | 'user' | null; // Track whether effort was user-set or AI-classified
   status: 'todo' | 'done';
   listDate: string; // YYYY-MM-DD
   isCarryover: boolean;
