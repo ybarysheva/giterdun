@@ -12,15 +12,13 @@ export type Task = {
   createdAt: number; // timestamp
   completedAt?: number; // timestamp
   originDate?: string; // YYYY-MM-DD
-  effortSource?: 'ai' | 'user' | null;
-  effortReasons?: string[] | null;
-  // Hierarchical task fields (PRD pivot)
+  description?: string;
+  // Subtask fields
   parentTaskId?: string | null;
   depth?: number;
-  description?: string;
+  // Canvas fields (planned feature)
   canvasPositionX?: number;
   canvasPositionY?: number;
-  deletedAt?: number | null;
 };
 
 export type Session = {};
