@@ -11,11 +11,14 @@ interface CarryoverListProps {
 }
 
 export function CarryoverList({ tasks, onAddCarryoverToToday }: CarryoverListProps) {
+  // Filter out subtasks — only show root carryover tasks
+  const rootTasks = tasks.filter(t => !t.parentTaskId);
+
   return (
     <div className="mt-8">
       <h2 className="text-lg font-semibold text-muted-foreground mb-3">From Yesterday</h2>
       <div className="space-y-2">
-        {tasks.map((task) => (
+        {rootTasks.map((task) => (
           <Card key={task.id} className="bg-card/50">
             <CardContent className="p-3 flex items-center justify-between gap-3">
               <span className="text-muted-foreground flex-grow">{task.title}</span>

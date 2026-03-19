@@ -13,14 +13,16 @@ interface TaskListProps {
 }
 
 export function TaskList({ tasks, firstTaskId, selectedTaskId, onUpdateTask, onDeleteTask, onSelectTask }: TaskListProps) {
+  // Filter out subtasks — only show root tasks (no parentTaskId)
+  const rootTasks = tasks.filter(t => !t.parentTaskId);
 
-  if (tasks.length === 0) {
+  if (rootTasks.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-2">
-      {tasks.map((task) => (
+      {rootTasks.map((task) => (
         <TaskItem
           key={task.id}
           task={task}
