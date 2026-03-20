@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 import { useTaskManager } from '@/hooks/use-tasks-manager';
 import { Header } from '@/components/app/Header';
 import { TaskInput } from '@/components/app/TaskInput';
@@ -8,9 +10,11 @@ import { TaskList } from '@/components/app/TaskList';
 import { CarryoverList } from '@/components/app/CarryoverList';
 import { TaskDetailPanel, TaskDetailPanelDesktop } from '@/components/app/TaskDetailPanel';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 export default function Home() {
+  const auth = useAuth();
   const {
     tasks,
     carryoverTasks,
@@ -114,6 +118,18 @@ export default function Home() {
         subtasks={selectedTaskSubtasks}
         onAddSubtask={handleAddSubtask}
       />
+
+      {/* ── Sign out button: bottom center ── */}
+      <div className="flex justify-center mt-12 pb-8">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => signOut(auth)}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          Sign out
+        </Button>
+      </div>
     </main>
   );
 }
