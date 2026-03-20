@@ -5,7 +5,6 @@ import { useRandomFont } from '@/hooks/use-random-font';
 
 interface Font {
   name: string;
-  url: string;
 }
 
 interface AppConfigContextType {
