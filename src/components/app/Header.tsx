@@ -17,11 +17,17 @@ export function Header() {
     return () => clearInterval(interval);
   }, []);
 
+  const datePart = dateTime.split('  ')[0]; // "Thu Mar 19"
+  const timePart = dateTime.split('  ')[1]; // "2:34pm"
+
   return (
     <header className="mb-6">
-      <div className="flex justify-between items-center text-sm text-muted-foreground">
-        <span>{dateTime}</span>
-        <span>3 due soon</span>
+      <div className="flex justify-between items-center text-sm font-semibold">
+        <div>
+          <span className="text-foreground">{datePart}</span>
+          <span className="text-muted-foreground ml-2">{timePart}</span>
+        </div>
+        <span className="text-foreground">3 due soon</span>
       </div>
     </header>
   );
