@@ -17,7 +17,6 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ['Inter Tight', 'sans-serif'],
         headline: ['Inter Tight', 'sans-serif'],
         code: ['monospace'],
       },

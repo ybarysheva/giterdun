@@ -2,6 +2,7 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { AppConfigProvider } from '@/context/AppConfigContext';
 
 export const metadata: Metadata = {
   title: 'Pick For Me',
@@ -21,9 +22,11 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased bg-background h-full">
-        <FirebaseClientProvider>
-          {children}
-        </FirebaseClientProvider>
+        <AppConfigProvider>
+          <FirebaseClientProvider>
+            {children}
+          </FirebaseClientProvider>
+        </AppConfigProvider>
         <Toaster />
       </body>
     </html>
