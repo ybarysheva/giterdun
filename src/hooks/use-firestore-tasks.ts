@@ -122,7 +122,6 @@ export function useFirestoreTasks() {
     setTasks(prev => {
       const newTasks = prev.map(t => {
         if (t.id !== id) return t;
-        if (updates.effort && updates.effort !== t.effort) updates.effortSource = 'user';
         return {
           ...t,
           ...updates,
