@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-interface Font {
+export interface Font {
   name: string;
 }
 

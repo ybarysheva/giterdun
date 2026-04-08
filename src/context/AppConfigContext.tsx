@@ -1,11 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useRandomFont } from '@/hooks/use-random-font';
-
-interface Font {
-  name: string;
-}
+import { useRandomFont, type Font } from '@/hooks/use-random-font';
 
 interface AppConfigContextType {
   currentFont: string;
