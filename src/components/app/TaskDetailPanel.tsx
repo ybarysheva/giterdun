@@ -5,12 +5,9 @@ import type { Task } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { X, Check } from 'lucide-react';
 import { SubtaskInput } from './SubtaskInput';
 import { SubtaskList } from './SubtaskList';
-
-// Remove unused Badge import
 
 interface TaskDetailPanelProps {
   task: Task | null;
