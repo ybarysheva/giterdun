@@ -107,7 +107,7 @@ function AddItemInput({ onAdd }: { onAdd: (title: string) => void }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex gap-2">
       <Input
         ref={inputRef}
         value={value}
@@ -117,10 +117,10 @@ function AddItemInput({ onAdd }: { onAdd: (title: string) => void }) {
           if (!value.trim()) setShowInput(false);
         }}
         placeholder="Item name..."
-        className="text-sm h-10 w-full"
+        className="text-sm h-8"
         autoFocus
       />
-      <Button size="sm" onClick={handleSubmit} className="h-9 w-full">
+      <Button size="sm" onClick={handleSubmit} className="h-8 px-3">
         Add
       </Button>
     </div>
