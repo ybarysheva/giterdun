@@ -26,6 +26,7 @@ export type ShoppingItem = {
   title: string;
   done: boolean;
   createdAt: number;
+  category?: 'grocery' | 'other'; // undefined = legacy item, treated as 'other'
 };
 
 export type Session = {};

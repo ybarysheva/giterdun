@@ -33,7 +33,7 @@ export default function Home() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [shoppingListOpen, setShoppingListOpen] = useState(false);
 
-  const { items: shoppingItems, addItem, deleteItem, toggleItem } = useShoppingList();
+  const { items: shoppingItems, addItem, deleteItem, toggleItem, setCategoryItem } = useShoppingList();
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedTaskSubtasks = selectedTask ? getSubtasksForTask(selectedTask.id) : [];
@@ -141,6 +141,7 @@ export default function Home() {
               onAddItem={addItem}
               onDeleteItem={deleteItem}
               onToggleItem={toggleItem}
+              onSetCategory={setCategoryItem}
             />
           </div>
         )}
@@ -154,6 +155,7 @@ export default function Home() {
         onAddItem={addItem}
         onDeleteItem={deleteItem}
         onToggleItem={toggleItem}
+        onSetCategory={setCategoryItem}
       />
 
       {/* ── Mobile: task detail bottom sheet ── */}

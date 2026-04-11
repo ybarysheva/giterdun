@@ -5,6 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useFirebase, useUser } from '@/firebase';
 import { ShoppingItem } from '@/lib/types';
 import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { classifyItem } from '@/lib/grocery-classifier';
 
 export function useShoppingList() {
   const { firestore } = useFirebase();
@@ -51,6 +52,7 @@ export function useShoppingList() {
         title: title.trim(),
         done: false,
         createdAt: Date.now(),
+        category: classifyItem(title.trim()),
       };
       setItems((prev) => {
         const next = [...prev, item];
@@ -83,11 +85,23 @@ export function useShoppingList() {
     [saveItems]
   );
 
+  const setCategoryItem = useCallback(
+    (id: string, category: 'grocery' | 'other') => {
+      setItems((prev) => {
+        const next = prev.map((i) => (i.id === id ? { ...i, category } : i));
+        saveItems(next);
+        return next;
+      });
+    },
+    [saveItems]
+  );
+
   return {
     items,
     loading: isUserLoading || loading,
     addItem,
     deleteItem,
     toggleItem,
+    setCategoryItem,
   };
 }

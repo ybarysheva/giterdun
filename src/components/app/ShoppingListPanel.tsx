@@ -5,7 +5,7 @@ import type { ShoppingItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, Trash2, Plus, X, ShoppingCart } from 'lucide-react';
+import { Check, Trash2, Plus, X, ShoppingCart, ArrowLeftRight } from 'lucide-react';
 
 interface ShoppingListPanelProps {
   isOpen: boolean;
@@ -14,16 +14,19 @@ interface ShoppingListPanelProps {
   onAddItem: (title: string) => void;
   onDeleteItem: (id: string) => void;
   onToggleItem: (id: string) => void;
+  onSetCategory: (id: string, category: 'grocery' | 'other') => void;
 }
 
 function ShoppingItemRow({
   item,
   onToggle,
   onDelete,
+  onMoveCategory,
 }: {
   item: ShoppingItem;
   onToggle: () => void;
   onDelete: () => void;
+  onMoveCategory: () => void;
 }) {
   return (
     <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
@@ -42,6 +45,16 @@ function ShoppingItemRow({
       <span className={cn('flex-1 text-sm', item.done && 'line-through text-muted-foreground')}>
         {item.title}
       </span>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={onMoveCategory}
+        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+        aria-label="Move to other section"
+        title="Move to other section"
+      >
+        <ArrowLeftRight className="h-3 w-3" />
+      </Button>
       <Button
         variant="ghost"
         size="icon"
@@ -120,8 +133,11 @@ function PanelContent({
   onAddItem,
   onDeleteItem,
   onToggleItem,
+  onSetCategory,
 }: Omit<ShoppingListPanelProps, 'isOpen'>) {
   const pendingItems = items.filter((i) => !i.done);
+  const groceryItems = pendingItems.filter((i) => i.category === 'grocery');
+  const otherItems = pendingItems.filter((i) => i.category !== 'grocery');
   const doneItems = items.filter((i) => i.done);
 
   return (
@@ -137,26 +153,50 @@ function PanelContent({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {items.length === 0 && (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Your list is empty — add something to get started.
           </p>
         )}
 
-        {pendingItems.length > 0 && (
+        {/* Groceries section */}
+        {groceryItems.length > 0 && (
           <div className="space-y-2">
-            {pendingItems.map((item) => (
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Groceries
+            </p>
+            {groceryItems.map((item) => (
               <ShoppingItemRow
                 key={item.id}
                 item={item}
                 onToggle={() => onToggleItem(item.id)}
                 onDelete={() => onDeleteItem(item.id)}
+                onMoveCategory={() => onSetCategory(item.id, 'other')}
               />
             ))}
           </div>
         )}
 
+        {/* Amazon or Whatever section */}
+        {otherItems.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Amazon or Whatever
+            </p>
+            {otherItems.map((item) => (
+              <ShoppingItemRow
+                key={item.id}
+                item={item}
+                onToggle={() => onToggleItem(item.id)}
+                onDelete={() => onDeleteItem(item.id)}
+                onMoveCategory={() => onSetCategory(item.id, 'grocery')}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Got it (done) section */}
         {doneItems.length > 0 && (
           <div className="space-y-2">
             {pendingItems.length > 0 && (
@@ -170,6 +210,7 @@ function PanelContent({
                 item={item}
                 onToggle={() => onToggleItem(item.id)}
                 onDelete={() => onDeleteItem(item.id)}
+                onMoveCategory={() => onSetCategory(item.id, item.category === 'grocery' ? 'other' : 'grocery')}
               />
             ))}
           </div>
@@ -188,6 +229,7 @@ export function ShoppingListPanel({
   onAddItem,
   onDeleteItem,
   onToggleItem,
+  onSetCategory,
 }: ShoppingListPanelProps) {
   return (
     <>
@@ -215,6 +257,7 @@ export function ShoppingListPanel({
             onAddItem={onAddItem}
             onDeleteItem={onDeleteItem}
             onToggleItem={onToggleItem}
+            onSetCategory={onSetCategory}
           />
         )}
       </div>
@@ -232,6 +275,7 @@ export function ShoppingListPanelDesktop({
   onAddItem,
   onDeleteItem,
   onToggleItem,
+  onSetCategory,
 }: ShoppingListPanelProps) {
   if (!isOpen) return null;
   return (
@@ -242,6 +286,7 @@ export function ShoppingListPanelDesktop({
         onAddItem={onAddItem}
         onDeleteItem={onDeleteItem}
         onToggleItem={onToggleItem}
+        onSetCategory={onSetCategory}
       />
     </div>
   );
