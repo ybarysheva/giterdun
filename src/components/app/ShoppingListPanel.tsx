@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { ShoppingItem } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,8 +28,22 @@ function ShoppingItemRow({
   onDelete: () => void;
   onMoveCategory: () => void;
 }) {
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    if (!item.done) { setFading(false); return; }
+    const fadeTimer = setTimeout(() => setFading(true), 3000);
+    return () => clearTimeout(fadeTimer);
+  }, [item.done]);
+
+  useEffect(() => {
+    if (!fading) return;
+    const removeTimer = setTimeout(() => onDelete(), 500);
+    return () => clearTimeout(removeTimer);
+  }, [fading, onDelete]);
+
   return (
-    <div className="flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors group">
+    <div className={`flex items-center gap-2 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-all duration-500 group ${fading ? 'opacity-0' : 'opacity-100'}`}>
       <button
         onClick={onToggle}
         className={cn(
@@ -74,9 +88,9 @@ function AddItemInput({ onAdd }: { onAdd: (title: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = () => {
-    const trimmed = value.trim();
-    if (trimmed) {
-      onAdd(trimmed);
+    const items = value.split(',').map((s) => s.trim()).filter(Boolean);
+    if (items.length > 0) {
+      items.forEach((item) => onAdd(item));
       setValue('');
     }
   };
@@ -135,10 +149,8 @@ function PanelContent({
   onToggleItem,
   onSetCategory,
 }: Omit<ShoppingListPanelProps, 'isOpen'>) {
-  const pendingItems = items.filter((i) => !i.done);
-  const groceryItems = pendingItems.filter((i) => i.category === 'grocery');
-  const otherItems = pendingItems.filter((i) => i.category !== 'grocery');
-  const doneItems = items.filter((i) => i.done);
+  const groceryItems = items.filter((i) => i.category === 'grocery');
+  const otherItems = items.filter((i) => i.category !== 'grocery');
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -154,7 +166,7 @@ function PanelContent({
 
       {/* Body */}
       <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-4">
-        {items.length === 0 && (
+        {groceryItems.length === 0 && otherItems.length === 0 && (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Your list is empty — add something to get started.
           </p>
@@ -196,25 +208,6 @@ function PanelContent({
           </div>
         )}
 
-        {/* Got it (done) section */}
-        {doneItems.length > 0 && (
-          <div className="space-y-2">
-            {pendingItems.length > 0 && (
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">
-                Got it
-              </p>
-            )}
-            {doneItems.map((item) => (
-              <ShoppingItemRow
-                key={item.id}
-                item={item}
-                onToggle={() => onToggleItem(item.id)}
-                onDelete={() => onDeleteItem(item.id)}
-                onMoveCategory={() => onSetCategory(item.id, item.category === 'grocery' ? 'other' : 'grocery')}
-              />
-            ))}
-          </div>
-        )}
 
         <AddItemInput onAdd={onAddItem} />
       </div>
