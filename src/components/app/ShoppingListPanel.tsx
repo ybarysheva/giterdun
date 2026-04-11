@@ -141,7 +141,7 @@ function PanelContent({
   const doneItems = items.filter((i) => i.done);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b">
         <ShoppingCart className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -153,7 +153,7 @@ function PanelContent({
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {items.length === 0 && (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Your list is empty — add something to get started.
@@ -251,14 +251,16 @@ export function ShoppingListPanel({
           <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
         </div>
         {isOpen && (
-          <PanelContent
-            onClose={onClose}
-            items={items}
-            onAddItem={onAddItem}
-            onDeleteItem={onDeleteItem}
-            onToggleItem={onToggleItem}
-            onSetCategory={onSetCategory}
-          />
+          <div className="flex-1 min-h-0">
+            <PanelContent
+              onClose={onClose}
+              items={items}
+              onAddItem={onAddItem}
+              onDeleteItem={onDeleteItem}
+              onToggleItem={onToggleItem}
+              onSetCategory={onSetCategory}
+            />
+          </div>
         )}
       </div>
     </>
