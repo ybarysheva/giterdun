@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { X, Check } from 'lucide-react';
 import { SubtaskInput } from './SubtaskInput';
 import { SubtaskList } from './SubtaskList';
+import { SubtaskPreview } from './SubtaskPreview';
 
 interface TaskDetailPanelProps {
   task: Task | null;
@@ -105,6 +106,16 @@ function PanelContent({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        {/* Next up preview */}
+        {(() => {
+          const nextSubtask = subtasks.find((s) => s.status === 'todo') ?? subtasks[0] ?? null;
+          return nextSubtask ? (
+            <div className="pb-1 border-b">
+              <SubtaskPreview subtask={nextSubtask} />
+            </div>
+          ) : null;
+        })()}
+
         {/* Description */}
         <div>
           <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">Notes</p>

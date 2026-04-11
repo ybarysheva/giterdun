@@ -7,12 +7,13 @@ interface TaskListProps {
   tasks: Task[];
   firstTaskId?: string;
   selectedTaskId?: string | null;
+  subtaskPreviewMap?: Map<string, Task | null>;
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   onDeleteTask: (id: string) => void;
   onSelectTask?: (id: string) => void;
 }
 
-export function TaskList({ tasks, firstTaskId, selectedTaskId, onUpdateTask, onDeleteTask, onSelectTask }: TaskListProps) {
+export function TaskList({ tasks, firstTaskId, selectedTaskId, subtaskPreviewMap, onUpdateTask, onDeleteTask, onSelectTask }: TaskListProps) {
   // Filter out subtasks — only show root tasks (no parentTaskId)
   const rootTasks = tasks.filter(t => !t.parentTaskId);
 
@@ -28,6 +29,7 @@ export function TaskList({ tasks, firstTaskId, selectedTaskId, onUpdateTask, onD
           task={task}
           isFirst={task.id === firstTaskId}
           isSelected={task.id === selectedTaskId}
+          nextSubtask={subtaskPreviewMap?.get(task.id) ?? null}
           onUpdateTask={onUpdateTask}
           onDeleteTask={onDeleteTask}
           onSelectTask={onSelectTask}

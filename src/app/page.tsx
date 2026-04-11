@@ -33,6 +33,16 @@ export default function Home() {
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedTaskSubtasks = selectedTask ? getSubtasksForTask(selectedTask.id) : [];
 
+  // Build a map of taskId → first todo subtask (for collapsed card previews)
+  const rootTasks = tasks.filter((t) => !t.parentTaskId);
+  const subtaskPreviewMap = new Map(
+    rootTasks.map((t) => {
+      const subtasks = getSubtasksForTask(t.id);
+      const next = subtasks.find((s) => s.status === 'todo') ?? subtasks[0] ?? null;
+      return [t.id, next] as const;
+    })
+  );
+
   const handleSelectTask = (id: string) => {
     setSelectedTaskId((prev) => (prev === id ? null : id));
   };
@@ -67,6 +77,7 @@ export default function Home() {
                 tasks={tasks}
                 firstTaskId={firstTask?.id}
                 selectedTaskId={selectedTaskId}
+                subtaskPreviewMap={subtaskPreviewMap}
                 onUpdateTask={updateTask}
                 onDeleteTask={deleteTask}
                 onSelectTask={handleSelectTask}

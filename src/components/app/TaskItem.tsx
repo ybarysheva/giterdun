@@ -14,10 +14,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SubtaskPreview } from './SubtaskPreview';
 
 interface TaskItemProps {
   task: Task;
   isFirst: boolean;
+  nextSubtask?: Task | null;
   onUpdateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   onDeleteTask: (id: string) => void;
   onSelectTask?: (id: string) => void;
@@ -27,6 +29,7 @@ interface TaskItemProps {
 export function TaskItem({
   task,
   isFirst,
+  nextSubtask,
   onUpdateTask,
   onDeleteTask,
   onSelectTask,
@@ -88,17 +91,20 @@ export function TaskItem({
                 className="h-8"
             />
           ) : (
-            <span
-              className={cn(
-                'transition-colors block truncate',
-                task.status === 'done'
-                  ? 'text-muted-foreground line-through'
-                  : 'text-card-foreground',
-                isFirst && task.status === 'todo' ? 'text-lg font-bold' : 'font-normal'
-              )}
-            >
-              {task.title}
-            </span>
+            <>
+              <span
+                className={cn(
+                  'transition-colors block truncate',
+                  task.status === 'done'
+                    ? 'text-muted-foreground line-through'
+                    : 'text-card-foreground',
+                  isFirst && task.status === 'todo' ? 'text-lg font-bold' : 'font-normal'
+                )}
+              >
+                {task.title}
+              </span>
+              <SubtaskPreview subtask={nextSubtask ?? null} />
+            </>
           )}
         </div>
 
