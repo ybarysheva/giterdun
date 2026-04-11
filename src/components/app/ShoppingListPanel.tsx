@@ -107,7 +107,7 @@ function AddItemInput({ onAdd }: { onAdd: (title: string) => void }) {
   }
 
   return (
-    <div className="flex gap-2 w-full">
+    <div className="flex flex-col gap-2">
       <Input
         ref={inputRef}
         value={value}
@@ -117,10 +117,10 @@ function AddItemInput({ onAdd }: { onAdd: (title: string) => void }) {
           if (!value.trim()) setShowInput(false);
         }}
         placeholder="Item name..."
-        className="text-sm h-8 min-w-0"
+        className="text-sm h-10 w-full"
         autoFocus
       />
-      <Button size="sm" onClick={handleSubmit} className="h-8 px-3 shrink-0">
+      <Button size="sm" onClick={handleSubmit} className="h-9 w-full">
         Add
       </Button>
     </div>
@@ -243,7 +243,7 @@ export function ShoppingListPanel({
       />
       <div
         className={cn(
-          'md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-2xl shadow-xl transition-transform duration-300 ease-out max-h-[80vh] flex flex-col overflow-hidden w-screen max-w-full',
+          'md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background rounded-t-2xl shadow-xl transition-transform duration-300 ease-out max-h-[80vh] flex flex-col',
           isOpen ? 'translate-y-0' : 'translate-y-full'
         )}
       >
