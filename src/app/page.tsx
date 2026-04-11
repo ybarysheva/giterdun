@@ -9,9 +9,11 @@ import { TaskInput } from '@/components/app/TaskInput';
 import { TaskList } from '@/components/app/TaskList';
 import { CarryoverList } from '@/components/app/CarryoverList';
 import { TaskDetailPanel, TaskDetailPanelDesktop } from '@/components/app/TaskDetailPanel';
+import { ShoppingListPanel, ShoppingListPanelDesktop } from '@/components/app/ShoppingListPanel';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useShoppingList } from '@/hooks/use-shopping-list';
 
 export default function Home() {
   const auth = useAuth();
@@ -29,6 +31,9 @@ export default function Home() {
   } = useTaskManager();
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [shoppingListOpen, setShoppingListOpen] = useState(false);
+
+  const { items: shoppingItems, addItem, deleteItem, toggleItem } = useShoppingList();
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedTaskSubtasks = selectedTask ? getSubtasksForTask(selectedTask.id) : [];
@@ -44,6 +49,7 @@ export default function Home() {
   );
 
   const handleSelectTask = (id: string) => {
+    setShoppingListOpen(false);
     setSelectedTaskId((prev) => (prev === id ? null : id));
   };
 
@@ -58,12 +64,18 @@ export default function Home() {
   return (
     <main className={cn(
       'container mx-auto p-4 md:p-8 font-body transition-all duration-300',
-      selectedTask ? 'max-w-4xl' : 'max-w-lg'
+      (selectedTask || shoppingListOpen) ? 'max-w-4xl' : 'max-w-lg'
     )}>
       <div className="flex gap-8 items-start">
         {/* ── Left column: main content ── */}
         <div className="flex-1 min-w-0">
-          <Header />
+          <Header
+            onOpenShoppingList={() => {
+              setShoppingListOpen((prev) => !prev);
+              setSelectedTaskId(null);
+            }}
+            shoppingItemCount={shoppingItems.filter((i) => !i.done).length}
+          />
 
           <div className="mt-8 space-y-2">
             {loading ? (
@@ -118,9 +130,33 @@ export default function Home() {
             />
           </div>
         )}
+
+        {/* ── Right column: desktop shopping list panel ── */}
+        {shoppingListOpen && !selectedTask && (
+          <div className="hidden md:block w-80 flex-shrink-0 sticky top-8">
+            <ShoppingListPanelDesktop
+              isOpen={shoppingListOpen}
+              onClose={() => setShoppingListOpen(false)}
+              items={shoppingItems}
+              onAddItem={addItem}
+              onDeleteItem={deleteItem}
+              onToggleItem={toggleItem}
+            />
+          </div>
+        )}
       </div>
 
-      {/* ── Mobile: bottom sheet ── */}
+      {/* ── Mobile: shopping list bottom sheet ── */}
+      <ShoppingListPanel
+        isOpen={shoppingListOpen}
+        onClose={() => setShoppingListOpen(false)}
+        items={shoppingItems}
+        onAddItem={addItem}
+        onDeleteItem={deleteItem}
+        onToggleItem={toggleItem}
+      />
+
+      {/* ── Mobile: task detail bottom sheet ── */}
       <TaskDetailPanel
         task={selectedTask}
         onClose={handleClosePanel}

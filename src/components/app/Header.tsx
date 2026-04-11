@@ -1,8 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { ShoppingCart } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-export function Header() {
+interface HeaderProps {
+  onOpenShoppingList: () => void;
+  shoppingItemCount: number;
+}
+
+export function Header({ onOpenShoppingList, shoppingItemCount }: HeaderProps) {
   const [dateTime, setDateTime] = useState('');
 
   useEffect(() => {
@@ -21,7 +28,23 @@ export function Header() {
     <header className="mb-6">
       <div className="flex justify-between items-center text-sm text-muted-foreground">
         <span>{dateTime}</span>
-        <span>3 due soon</span>
+        <div className="flex items-center gap-2">
+          <span>3 due soon</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onOpenShoppingList}
+            className="h-7 w-7 relative"
+            aria-label="Open shopping list"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {shoppingItemCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-medium leading-none">
+                {shoppingItemCount > 9 ? '9+' : shoppingItemCount}
+              </span>
+            )}
+          </Button>
+        </div>
       </div>
     </header>
   );

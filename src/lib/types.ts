@@ -21,4 +21,11 @@ export type Task = {
   canvasPositionY?: number;
 };
 
+export type ShoppingItem = {
+  id: string;
+  title: string;
+  done: boolean;
+  createdAt: number;
+};
+
 export type Session = {};
