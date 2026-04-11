@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { X, Check } from 'lucide-react';
 import { SubtaskInput } from './SubtaskInput';
 import { SubtaskList } from './SubtaskList';
-import { SubtaskPreview } from './SubtaskPreview';
 
 interface TaskDetailPanelProps {
   task: Task | null;
@@ -106,15 +105,18 @@ function PanelContent({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {/* Next up preview */}
-        {(() => {
-          const nextSubtask = subtasks.find((s) => s.status === 'todo') ?? subtasks[0] ?? null;
-          return nextSubtask ? (
-            <div className="pb-1 border-b">
-              <SubtaskPreview subtask={nextSubtask} />
-            </div>
-          ) : null;
-        })()}
+        {/* Subtasks */}
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Do next</p>
+          <div className="space-y-3">
+            <SubtaskList
+              subtasks={subtasks}
+              onToggleSubtask={(id, status) => onUpdateTask(id, { status })}
+              onDeleteSubtask={(id) => onDeleteTask?.(id)}
+            />
+            <SubtaskInput onAddSubtask={onAddSubtask} />
+          </div>
+        </div>
 
         {/* Description */}
         <div>
@@ -127,19 +129,6 @@ function PanelContent({
             rows={4}
             className="w-full text-sm rounded-lg border border-input bg-background px-3 py-2 placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
           />
-        </div>
-
-        {/* Subtasks */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">Subtasks</p>
-          <div className="space-y-3">
-            <SubtaskList
-              subtasks={subtasks}
-              onToggleSubtask={(id, status) => onUpdateTask(id, { status })}
-              onDeleteSubtask={(id) => onDeleteTask?.(id)}
-            />
-            <SubtaskInput onAddSubtask={onAddSubtask} />
-          </div>
         </div>
       </div>
     </div>
