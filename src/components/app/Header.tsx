@@ -1,15 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, List, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface HeaderProps {
   onOpenShoppingList: () => void;
   shoppingItemCount: number;
+  activeView: 'list' | 'canvas';
+  onViewChange: (view: 'list' | 'canvas') => void;
 }
 
-export function Header({ onOpenShoppingList, shoppingItemCount }: HeaderProps) {
+export function Header({ onOpenShoppingList, shoppingItemCount, activeView, onViewChange }: HeaderProps) {
   const [dateTime, setDateTime] = useState('');
 
   useEffect(() => {
@@ -20,7 +23,7 @@ export function Header({ onOpenShoppingList, shoppingItemCount }: HeaderProps) {
     };
 
     updateDateTime();
-    const interval = setInterval(updateDateTime, 60000); // Update every minute
+    const interval = setInterval(updateDateTime, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -30,6 +33,35 @@ export function Header({ onOpenShoppingList, shoppingItemCount }: HeaderProps) {
         <span>{dateTime}</span>
         <div className="flex items-center gap-2">
           <span>3 due soon</span>
+
+          {/* View toggle */}
+          <div className="flex items-center rounded-md border border-border overflow-hidden">
+            <button
+              onClick={() => onViewChange('list')}
+              className={cn(
+                'h-7 w-7 flex items-center justify-center transition-colors',
+                activeView === 'list'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-muted text-muted-foreground'
+              )}
+              aria-label="List view"
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => onViewChange('canvas')}
+              className={cn(
+                'h-7 w-7 flex items-center justify-center transition-colors',
+                activeView === 'canvas'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-muted text-muted-foreground'
+              )}
+              aria-label="Canvas view"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
           <Button
             variant="ghost"
             size="icon"

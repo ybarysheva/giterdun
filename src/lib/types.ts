@@ -30,3 +30,11 @@ export type ShoppingItem = {
 };
 
 export type Session = {};
+
+export type Project = {
+  id: string;
+  name: string;
+  canvasPositionX: number;
+  canvasPositionY: number;
+  createdAt: number;
+};

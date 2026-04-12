@@ -8,6 +8,7 @@ import { Header } from '@/components/app/Header';
 import { TaskInput } from '@/components/app/TaskInput';
 import { TaskList } from '@/components/app/TaskList';
 import { CarryoverList } from '@/components/app/CarryoverList';
+import { CanvasView } from '@/components/app/CanvasView';
 import { TaskDetailPanel, TaskDetailPanelDesktop } from '@/components/app/TaskDetailPanel';
 import { ShoppingListPanel, ShoppingListPanelDesktop } from '@/components/app/ShoppingListPanel';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,6 +33,7 @@ export default function Home() {
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [shoppingListOpen, setShoppingListOpen] = useState(false);
+  const [activeView, setActiveView] = useState<'list' | 'canvas'>('list');
 
   const { items: shoppingItems, addItem, deleteItem, toggleItem, setCategoryItem } = useShoppingList();
 
@@ -61,6 +63,24 @@ export default function Home() {
     }
   };
 
+  if (activeView === 'canvas') {
+    return (
+      <main className="fixed inset-0 flex flex-col font-body">
+        <div className="px-4 md:px-8 pt-4 md:pt-8 shrink-0">
+          <Header
+            onOpenShoppingList={() => setShoppingListOpen((prev) => !prev)}
+            shoppingItemCount={shoppingItems.filter((i) => !i.done).length}
+            activeView={activeView}
+            onViewChange={setActiveView}
+          />
+        </div>
+        <div className="flex-1 min-h-0 px-4 md:px-8 pb-4 md:pb-8">
+          <CanvasView />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className={cn(
       'container mx-auto p-4 md:p-8 font-body transition-all duration-300',
@@ -75,6 +95,8 @@ export default function Home() {
               setSelectedTaskId(null);
             }}
             shoppingItemCount={shoppingItems.filter((i) => !i.done).length}
+            activeView={activeView}
+            onViewChange={setActiveView}
           />
 
           <div className="mt-8 space-y-2">
