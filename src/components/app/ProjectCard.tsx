@@ -153,6 +153,10 @@ export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragSta
             e.stopPropagation();
             onOpen(project.id);
           }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
           className="flex-shrink-0 p-1 rounded hover:bg-muted transition-colors cursor-pointer"
           aria-label="View project details"
         >
