@@ -46,13 +46,13 @@ export function CanvasView({
     });
 
     // Disable panning when dragging a card
-    pz.on('beforeWheel', (e) => {
+    pz.on('beforeWheel', (e: any) => {
       if (isDraggingCardRef.current) {
         e.preventDefault();
       }
     });
 
-    pz.on('beforeMouseDown', (e) => {
+    pz.on('beforeMouseDown', (e: any) => {
       if (isDraggingCardRef.current) {
         e.preventDefault();
       }
