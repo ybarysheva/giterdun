@@ -87,7 +87,7 @@ export function CanvasView({
     <div
       ref={canvasRef}
       className="fixed inset-0 overflow-hidden bg-muted/20 select-none"
-      style={{ overscrollBehavior: 'none', touchAction: 'none' }}
+      style={{ overscrollBehavior: 'none' }}
     >
       {/* Transformable surface (controlled by panzoom) */}
       <div
