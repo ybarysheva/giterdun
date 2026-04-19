@@ -38,7 +38,7 @@ export function useProjects() {
   const createProject = useCallback(
     async (name: string) => {
       if (!firestore || !user || !name.trim()) return;
-      const id = crypto.randomUUID();
+      const id = Math.random().toString(36).substring(2) + Date.now().toString(36);
       // Offset each new card so they don't stack
       const offset = projects.length;
       const project: Project = {

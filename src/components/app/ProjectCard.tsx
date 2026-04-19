@@ -8,38 +8,57 @@ interface ProjectCardProps {
   project: Project;
   zoom: number;
   onPositionChange: (id: string, x: number, y: number) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
 }
 
 const LONG_PRESS_MS = 500;
-const LONG_PRESS_MOVE_THRESHOLD = 6;
+const DRAG_THRESHOLD = 5; // px — below this = click, above = drag
 
-export function ProjectCard({ project, zoom, onPositionChange }: ProjectCardProps) {
+export function ProjectCard({ project, zoom, onPositionChange, onDragStart, onDragEnd }: ProjectCardProps) {
   const posRef = useRef({ x: project.canvasPositionX, y: project.canvasPositionY });
   const cardRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  // ── Mouse drag (desktop) ────────────────────────────────────────────────
+  // ── Mouse: click vs drag (desktop) ────────────────────────────────────────
+  const mouseDownPos = useRef({ x: 0, y: 0 });
+  const hasDragged = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      setDragging(true);
+      hasDragged.current = false;
+      mouseDownPos.current = { x: e.clientX, y: e.clientY };
       lastMouse.current = { x: e.clientX, y: e.clientY };
 
       const onMove = (ev: MouseEvent) => {
-        if (!cardRef.current) return;
-        const dx = (ev.clientX - lastMouse.current.x) / zoom;
-        const dy = (ev.clientY - lastMouse.current.y) / zoom;
-        posRef.current = { x: posRef.current.x + dx, y: posRef.current.y + dy };
-        lastMouse.current = { x: ev.clientX, y: ev.clientY };
-        cardRef.current.style.left = `${posRef.current.x}px`;
-        cardRef.current.style.top = `${posRef.current.y}px`;
+        const dx = ev.clientX - mouseDownPos.current.x;
+        const dy = ev.clientY - mouseDownPos.current.y;
+
+        if (!hasDragged.current && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+          hasDragged.current = true;
+          setDragging(true);
+          onDragStart?.();
+        }
+
+        if (hasDragged.current && cardRef.current) {
+          const ddx = (ev.clientX - lastMouse.current.x) / zoom;
+          const ddy = (ev.clientY - lastMouse.current.y) / zoom;
+          posRef.current = { x: posRef.current.x + ddx, y: posRef.current.y + ddy };
+          lastMouse.current = { x: ev.clientX, y: ev.clientY };
+          cardRef.current.style.left = `${posRef.current.x}px`;
+          cardRef.current.style.top = `${posRef.current.y}px`;
+        }
       };
 
       const onUp = () => {
+        if (hasDragged.current) {
+          onPositionChange(project.id, posRef.current.x, posRef.current.y);
+          onDragEnd?.();
+        }
         setDragging(false);
-        onPositionChange(project.id, posRef.current.x, posRef.current.y);
+        hasDragged.current = false;
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
       };
@@ -50,7 +69,7 @@ export function ProjectCard({ project, zoom, onPositionChange }: ProjectCardProp
     [zoom, onPositionChange, project.id]
   );
 
-  // ── Long press + drag (mobile) ──────────────────────────────────────────
+  // ── Touch: tap vs long press + drag (mobile) ──────────────────────────────
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragActive = useRef(false);
   const touchStart = useRef({ x: 0, y: 0 });
@@ -65,25 +84,25 @@ export function ProjectCard({ project, zoom, onPositionChange }: ProjectCardProp
     longPressTimer.current = setTimeout(() => {
       touchDragActive.current = true;
       setDragging(true);
+      onDragStart?.();
       if (navigator.vibrate) navigator.vibrate(40);
     }, LONG_PRESS_MS);
-  }, []);
+  }, [onDragStart]);
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
       const touch = e.touches[0];
 
-      // Cancel long press if finger moves too much before it fires
       if (!touchDragActive.current) {
         const dx = Math.abs(touch.clientX - touchStart.current.x);
         const dy = Math.abs(touch.clientY - touchStart.current.y);
-        if (dx > LONG_PRESS_MOVE_THRESHOLD || dy > LONG_PRESS_MOVE_THRESHOLD) {
+        if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
           if (longPressTimer.current) clearTimeout(longPressTimer.current);
         }
         return;
       }
 
-      e.stopPropagation(); // prevent canvas pan while dragging card
+      e.stopPropagation();
       if (!cardRef.current) return;
 
       const dx = (touch.clientX - lastTouch.current.x) / zoom;
@@ -100,10 +119,11 @@ export function ProjectCard({ project, zoom, onPositionChange }: ProjectCardProp
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     if (touchDragActive.current) {
       onPositionChange(project.id, posRef.current.x, posRef.current.y);
+      onDragEnd?.();
     }
     touchDragActive.current = false;
     setDragging(false);
-  }, [onPositionChange, project.id]);
+  }, [onPositionChange, project.id, onDragEnd]);
 
   return (
     <div

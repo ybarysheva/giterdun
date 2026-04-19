@@ -32,8 +32,6 @@ export function Header({ onOpenShoppingList, shoppingItemCount, activeView, onVi
       <div className="flex justify-between items-center text-sm text-muted-foreground">
         <span>{dateTime}</span>
         <div className="flex items-center gap-2">
-          <span>3 due soon</span>
-
           {/* View toggle */}
           <div className="flex items-center rounded-md border border-border overflow-hidden">
             <button

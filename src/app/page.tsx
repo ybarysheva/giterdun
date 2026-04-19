@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useTaskManager } from '@/hooks/use-tasks-manager';
+import { useProjects } from '@/hooks/use-projects';
 import { Header } from '@/components/app/Header';
 import { TaskInput } from '@/components/app/TaskInput';
 import { TaskList } from '@/components/app/TaskList';
@@ -13,6 +14,8 @@ import { TaskDetailPanel, TaskDetailPanelDesktop } from '@/components/app/TaskDe
 import { ShoppingListPanel, ShoppingListPanelDesktop } from '@/components/app/ShoppingListPanel';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useShoppingList } from '@/hooks/use-shopping-list';
 
@@ -31,11 +34,28 @@ export default function Home() {
     firstTask,
   } = useTaskManager();
 
+  const { createProject } = useProjects();
+
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [shoppingListOpen, setShoppingListOpen] = useState(false);
   const [activeView, setActiveView] = useState<'list' | 'canvas'>('list');
+  const [showCreateInput, setShowCreateInput] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const createInputRef = useRef<HTMLInputElement | null>(null);
 
   const { items: shoppingItems, addItem, deleteItem, toggleItem, setCategoryItem } = useShoppingList();
+
+  const handleCreateProject = useCallback(async () => {
+    if (!newProjectName.trim()) return;
+    await createProject(newProjectName.trim());
+    setNewProjectName('');
+    setShowCreateInput(false);
+  }, [newProjectName, createProject]);
+
+  const handleCreateInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') handleCreateProject();
+    if (e.key === 'Escape') { setShowCreateInput(false); setNewProjectName(''); }
+  };
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) ?? null;
   const selectedTaskSubtasks = selectedTask ? getSubtasksForTask(selectedTask.id) : [];
@@ -65,17 +85,50 @@ export default function Home() {
 
   if (activeView === 'canvas') {
     return (
-      <main className="fixed inset-0 flex flex-col font-body">
-        <div className="px-4 md:px-8 pt-4 md:pt-8 shrink-0">
-          <Header
-            onOpenShoppingList={() => setShoppingListOpen((prev) => !prev)}
-            shoppingItemCount={shoppingItems.filter((i) => !i.done).length}
-            activeView={activeView}
-            onViewChange={setActiveView}
-          />
-        </div>
-        <div className="flex-1 min-h-0 px-4 md:px-8 pb-4 md:pb-8">
-          <CanvasView />
+      <main className="fixed inset-0 font-body">
+        <CanvasView
+          showCreateInput={showCreateInput}
+          newProjectName={newProjectName}
+          onShowCreateInput={setShowCreateInput}
+          onNewProjectNameChange={setNewProjectName}
+          onCreateProject={handleCreateProject}
+        />
+        <div className="fixed top-0 left-0 right-0 z-50 px-4 md:px-8 pt-4 md:pt-8 pointer-events-none">
+          <div className="pointer-events-auto flex justify-between items-start gap-4">
+            <div>
+              {showCreateInput ? (
+                <div className="flex gap-2">
+                  <Input
+                    ref={createInputRef}
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    onKeyDown={handleCreateInputKeyDown}
+                    placeholder="Project name..."
+                    className="h-8 text-sm w-48 bg-background"
+                    autoFocus
+                  />
+                  <Button size="sm" className="h-8 px-3" onClick={handleCreateProject}>
+                    Create
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  className="gap-2 shadow-sm"
+                  onClick={() => setShowCreateInput(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Create project
+                </Button>
+              )}
+            </div>
+            <Header
+              onOpenShoppingList={() => setShoppingListOpen((prev) => !prev)}
+              shoppingItemCount={shoppingItems.filter((i) => !i.done).length}
+              activeView={activeView}
+              onViewChange={setActiveView}
+            />
+          </div>
         </div>
       </main>
     );
