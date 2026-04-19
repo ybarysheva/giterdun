@@ -1,9 +1,10 @@
 'use client';
 
-import { useRef, useCallback, useEffect } from 'react';
+import { useRef, useCallback, useEffect, useState } from 'react';
 import panzoom, { PanZoom } from 'panzoom';
 import { useProjects } from '@/hooks/use-projects';
 import { ProjectCard } from './ProjectCard';
+import { ProjectDrawer, ProjectDrawerDesktop } from './ProjectDrawer';
 
 interface CanvasViewProps {
   showCreateInput: boolean;
@@ -26,6 +27,8 @@ export function CanvasView({
   const isDraggingCardRef = useRef(false);
 
   const { projects, updateProjectPosition } = useProjects();
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') onCreateProject();
@@ -101,6 +104,7 @@ export function CanvasView({
             project={project}
             zoom={1}
             onPositionChange={updateProjectPosition}
+            onOpen={setSelectedProjectId}
             onDragStart={handleCardDragStart}
             onDragEnd={handleCardDragEnd}
           />
@@ -115,6 +119,12 @@ export function CanvasView({
           </p>
         </div>
       )}
+
+      {/* Desktop drawer — inside canvas, not affected by pan/zoom */}
+      <ProjectDrawerDesktop project={selectedProject} onClose={() => setSelectedProjectId(null)} />
+
+      {/* Mobile bottom sheet — rendered at root level */}
+      <ProjectDrawer project={selectedProject} onClose={() => setSelectedProjectId(null)} />
     </div>
   );
 }

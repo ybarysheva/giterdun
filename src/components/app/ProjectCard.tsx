@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState, useCallback } from 'react';
+import { Info } from 'lucide-react';
 import type { Project } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
@@ -8,6 +9,7 @@ interface ProjectCardProps {
   project: Project;
   zoom: number;
   onPositionChange: (id: string, x: number, y: number) => void;
+  onOpen: (id: string) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }
@@ -15,7 +17,7 @@ interface ProjectCardProps {
 const LONG_PRESS_MS = 500;
 const DRAG_THRESHOLD = 5; // px — below this = click, above = drag
 
-export function ProjectCard({ project, zoom, onPositionChange, onDragStart, onDragEnd }: ProjectCardProps) {
+export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragStart, onDragEnd }: ProjectCardProps) {
   const posRef = useRef({ x: project.canvasPositionX, y: project.canvasPositionY });
   const cardRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -133,7 +135,7 @@ export function ProjectCard({ project, zoom, onPositionChange, onDragStart, onDr
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       className={cn(
-        'absolute bg-card border rounded-xl shadow-sm px-4 py-3 select-none',
+        'absolute bg-card border rounded-xl shadow-sm px-4 py-3 select-none relative',
         'transition-shadow duration-150 w-48',
         dragging
           ? 'cursor-grabbing shadow-lg scale-105'
@@ -144,7 +146,19 @@ export function ProjectCard({ project, zoom, onPositionChange, onDragStart, onDr
         top: project.canvasPositionY,
       }}
     >
-      <p className="text-sm font-semibold truncate">{project.name}</p>
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold truncate flex-1">{project.name}</p>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpen(project.id);
+          }}
+          className="flex-shrink-0 p-1 rounded hover:bg-muted transition-colors cursor-pointer"
+          aria-label="View project details"
+        >
+          <Info className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+        </button>
+      </div>
     </div>
   );
 }

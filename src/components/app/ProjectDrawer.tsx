@@ -1,9 +1,10 @@
 'use client';
 
+import { formatDistance } from 'date-fns';
 import type { Project } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 
 interface ProjectDrawerProps {
   project: Project | null;
@@ -20,8 +21,27 @@ function DrawerContent({ project, onClose }: { project: Project; onClose: () => 
           <span className="sr-only">Close</span>
         </Button>
       </div>
-      <div className="flex-1 p-4 text-sm text-muted-foreground">
-        {/* Phase 4: notes, links, tasks go here */}
+      <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase">Created</p>
+          <p className="text-sm">
+            {formatDistance(project.createdAt, new Date(), { addSuffix: true })}
+          </p>
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase">Position</p>
+          <p className="text-sm text-muted-foreground">
+            {Math.round(project.canvasPositionX)}, {Math.round(project.canvasPositionY)}
+          </p>
+        </div>
+
+        <div className="pt-4 border-t">
+          <Button variant="outline" size="sm" className="w-full text-destructive">
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Project
+          </Button>
+        </div>
       </div>
     </div>
   );
