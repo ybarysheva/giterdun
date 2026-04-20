@@ -171,12 +171,7 @@ export function ProjectCard({
             e.stopPropagation();
             onOpen(project.id);
           }}
-          onMouseDown={(e) => {
-            e.stopPropagation(); // don't trigger card's handleMouseDown
-          }}
-          onTouchStart={(e) => {
-            e.stopPropagation(); // don't trigger card's handleTouchStart
-          }}
+          onMouseDown={(e) => e.stopPropagation()}
           className="flex-shrink-0 p-1 rounded hover:bg-muted transition-colors cursor-pointer"
           aria-label="View project details"
           style={{ touchAction: 'manipulation' }}
