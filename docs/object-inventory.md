@@ -117,22 +117,49 @@ This is a real object — not just UI state — because it has its own attribute
   - complete *(also marks the Task done)*
   - abandon *(end without completing the Task)*
 
-### 5. Canvas *(future, single instance per user)*
+### 5. Project
 
-> A spatial workspace where top-level tasks can be positioned visually. Each user has one persistent canvas.
+> A spatial card on the canvas representing a work area or initiative. Each project can contain details, links, notes, and attached to-do items.
 
-- **Core content**: the positioned tasks
+- **Core content**: title, description, attached to-do items
+- **Metadata**: created-at, canvas position
+- **Attributes**:
+  - title
+  - description (free-form text notes)
+  - links (array of URLs with optional labels)
+  - attached tasks (array of Task references or embedded to-do items)
+  - canvasPositionX
+  - canvasPositionY
+  - createdAt
+- **Relationships**:
+  - belongs to one → **User**
+  - has many → **Task** *(optionally linked/nested)*
+- **CTAs**:
+  - create
+  - rename
+  - edit description
+  - add / remove link
+  - attach to-do
+  - open detail panel
+  - delete
+  - drag on canvas (reposition)
+
+### 6. Canvas *(single instance per user)*
+
+> A spatial workspace where top-level projects can be positioned visually. Each user has one persistent canvas.
+
+- **Core content**: the positioned projects
 - **Metadata**: —
 - **Attributes**:
   - zoom level
   - pan position
 - **Relationships**:
   - belongs to one → **User**
-  - has many → **Task** *(positioned, top-level only)*
+  - has many → **Project** *(positioned)*
 - **CTAs**:
   - pan
   - zoom
-  - drop task (reposition)
+  - drop project (reposition)
   - reset layout
 
 ---

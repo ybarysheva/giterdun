@@ -140,14 +140,22 @@ Accessible from any task in the list. Implemented as:
 - desktop: right sidebar (320px), list shifts to two-column layout
 - mobile: fixed bottom sheet with drag handle and backdrop
 
-## Canvas View *(planned)*
+## Canvas View
 
-Displays top-level tasks (no `parentTaskId`) as draggable cards on a freeform canvas.
+Displays projects as draggable cards on a freeform canvas.
+
+Projects are spatial workspaces for organizing larger bodies of work. Each project has:
+- A title
+- Free-form description and notes
+- Attached links
+- Attached to-do items (either nested tasks or references to the main task list)
 
 Capabilities:
+- create, edit, and delete projects
+- add / edit description, links, and attached to-dos
 - drag cards to reposition
 - pan and zoom the canvas
-- clicking a card opens the task detail panel
+- clicking a card opens the project detail panel
 
 Subtasks do not appear on the canvas.
 
@@ -219,8 +227,12 @@ All task queries are scoped by `userId` via Firestore security rules.
 | Flag / priority | ✅ done |
 | Carryover tasks | ✅ done |
 | Task detail panel (desktop + mobile) | ✅ done |
+| Canvas view (basic) | ✅ done |
+| Canvas: create/delete projects | ✅ done |
+| Canvas: drag/pan/zoom | ✅ done |
+| Canvas: project info button | ✅ done |
 | Subtask UI | ⬜ planned |
-| Canvas view | ⬜ planned |
+| Project detail panel (description, links, attached to-dos) | ⬜ planned |
 
 ---
 

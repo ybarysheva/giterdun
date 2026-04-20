@@ -78,5 +78,25 @@ export function useProjects() {
     [firestore, user]
   );
 
-  return { projects, loading, createProject, updateProjectPosition, deleteProject };
+  const updateProjectDescription = useCallback(
+    async (id: string, description: string) => {
+      if (!firestore || !user) return;
+      await updateDoc(doc(firestore, 'users', user.uid, 'projects', id), {
+        description,
+      });
+    },
+    [firestore, user]
+  );
+
+  const updateProjectLinks = useCallback(
+    async (id: string, links: string[]) => {
+      if (!firestore || !user) return;
+      await updateDoc(doc(firestore, 'users', user.uid, 'projects', id), {
+        links,
+      });
+    },
+    [firestore, user]
+  );
+
+  return { projects, loading, createProject, updateProjectPosition, deleteProject, updateProjectDescription, updateProjectLinks };
 }

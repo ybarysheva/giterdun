@@ -26,7 +26,7 @@ export function CanvasView({
   const panzoomRef = useRef<PanZoom | null>(null);
   const isDraggingCardRef = useRef(false);
 
-  const { projects, updateProjectPosition, deleteProject } = useProjects();
+  const { projects, updateProjectPosition, deleteProject, updateProjectDescription, updateProjectLinks } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
@@ -135,11 +135,11 @@ export function CanvasView({
         )}
 
         {/* Mobile bottom sheet */}
-        <ProjectDrawer project={selectedProject} onClose={() => setSelectedProjectId(null)} onDelete={deleteProject} />
+        <ProjectDrawer project={selectedProject} onClose={() => setSelectedProjectId(null)} onDelete={deleteProject} onUpdateDescription={updateProjectDescription} onUpdateLinks={updateProjectLinks} />
       </div>
 
       {/* Desktop drawer — fixed outside canvas, unaffected by pan/zoom */}
-      <ProjectDrawerDesktop project={selectedProject} onClose={() => setSelectedProjectId(null)} onDelete={deleteProject} />
+      <ProjectDrawerDesktop project={selectedProject} onClose={() => setSelectedProjectId(null)} onDelete={deleteProject} onUpdateDescription={updateProjectDescription} onUpdateLinks={updateProjectLinks} />
     </>
   );
 }

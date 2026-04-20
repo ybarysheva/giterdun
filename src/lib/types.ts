@@ -34,6 +34,8 @@ export type Session = {};
 export type Project = {
   id: string;
   name: string;
+  description?: string;
+  links?: string[];
   canvasPositionX: number;
   canvasPositionY: number;
   createdAt: number;
