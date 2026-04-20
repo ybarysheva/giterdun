@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { Info } from 'lucide-react';
 import type { Project } from '@/lib/types';
 import { cn } from '@/lib/utils';
@@ -30,6 +30,7 @@ export function ProjectCard({
 }: ProjectCardProps) {
   const posRef = useRef({ x: project.canvasPositionX, y: project.canvasPositionY });
   const cardRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [dragging, setDragging] = useState(false);
 
   const beginPause = onPointerBegin ?? onTouchBegin;
@@ -59,8 +60,8 @@ export function ProjectCard({
         }
 
         if (hasDragged.current && cardRef.current) {
-          const ddx = (ev.clientX - lastMouse.current.x) / zoom;
-          const ddy = (ev.clientY - lastMouse.current.y) / zoom;
+          const ddx = ev.clientX - lastMouse.current.x;
+          const ddy = ev.clientY - lastMouse.current.y;
           posRef.current = { x: posRef.current.x + ddx, y: posRef.current.y + ddy };
           lastMouse.current = { x: ev.clientX, y: ev.clientY };
           cardRef.current.style.left = `${posRef.current.x}px`;
@@ -123,8 +124,8 @@ export function ProjectCard({
       e.stopPropagation();
       if (!cardRef.current) return;
 
-      const dx = (touch.clientX - lastTouch.current.x) / zoom;
-      const dy = (touch.clientY - lastTouch.current.y) / zoom;
+      const dx = (touch.clientX - lastTouch.current.x) / zoom * 0.5;
+      const dy = (touch.clientY - lastTouch.current.y) / zoom * 0.5;
       posRef.current = { x: posRef.current.x + dx, y: posRef.current.y + dy };
       lastTouch.current = { x: touch.clientX, y: touch.clientY };
       cardRef.current.style.left = `${posRef.current.x}px`;
@@ -144,6 +145,67 @@ export function ProjectCard({
     finishResume?.(); // resume panzoom when finger lifts
   }, [onPositionChange, project.id, onDragEnd, finishResume]);
 
+  // Native touch handler on card to pause panzoom before it captures the touch
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+
+    const handleCardTouchStart = (e: TouchEvent) => {
+      // Prevent panzoom from seeing this touch and pause it
+      e.preventDefault();
+      onPointerBegin?.();
+    };
+
+    const handleCardTouchMove = (e: TouchEvent) => {
+      // Prevent panzoom from panning while card is being dragged
+      e.preventDefault();
+    };
+
+    card.addEventListener('touchstart', handleCardTouchStart, { passive: false });
+    card.addEventListener('touchmove', handleCardTouchMove, { passive: false });
+
+    return () => {
+      card.removeEventListener('touchstart', handleCardTouchStart);
+      card.removeEventListener('touchmove', handleCardTouchMove);
+    };
+  }, [onPointerBegin]);
+
+  // Native touch handler on button to prevent panzoom from consuming the tap
+  useEffect(() => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    let touchStartPos = { x: 0, y: 0 };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault(); // block panzoom from seeing this touch
+      onPointerBegin?.();
+      const touch = e.touches[0];
+      touchStartPos = { x: touch.clientX, y: touch.clientY };
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      const dx = Math.abs(touch.clientX - touchStartPos.x);
+      const dy = Math.abs(touch.clientY - touchStartPos.y);
+
+      // If touch didn't move much, it's a tap — open the drawer
+      if (dx < 10 && dy < 10) {
+        onOpen(project.id);
+      }
+
+      onPointerFinish?.();
+    };
+
+    button.addEventListener('touchstart', handleTouchStart, { passive: false });
+    button.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      button.removeEventListener('touchstart', handleTouchStart);
+      button.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [onPointerBegin, onPointerFinish, onOpen, project.id]);
+
   return (
     <div
       ref={cardRef}
@@ -162,11 +224,14 @@ export function ProjectCard({
       style={{
         left: project.canvasPositionX,
         top: project.canvasPositionY,
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
       }}
     >
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold truncate flex-1">{project.name}</p>
         <button
+          ref={buttonRef}
           onClick={(e) => {
             e.stopPropagation();
             onOpen(project.id);

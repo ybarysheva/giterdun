@@ -26,8 +26,9 @@ export function CanvasView({
   const panzoomRef = useRef<PanZoom | null>(null);
   const isDraggingCardRef = useRef(false);
 
-  const { projects, updateProjectPosition } = useProjects();
+  const { projects, updateProjectPosition, deleteProject } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
   const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -58,6 +59,11 @@ export function CanvasView({
       if (isDraggingCardRef.current) {
         e.preventDefault();
       }
+    });
+
+    pz.on('change', () => {
+      const transform = pz.getTransform();
+      setZoom(transform.scale);
     });
 
     panzoomRef.current = pz;
@@ -108,7 +114,7 @@ export function CanvasView({
             <ProjectCard
               key={project.id}
               project={project}
-              zoom={1}
+              zoom={zoom}
               onPositionChange={updateProjectPosition}
               onOpen={setSelectedProjectId}
               onPointerBegin={handleCardTouchBegin}
@@ -129,11 +135,11 @@ export function CanvasView({
         )}
 
         {/* Mobile bottom sheet */}
-        <ProjectDrawer project={selectedProject} onClose={() => setSelectedProjectId(null)} />
+        <ProjectDrawer project={selectedProject} onClose={() => setSelectedProjectId(null)} onDelete={deleteProject} />
       </div>
 
       {/* Desktop drawer — fixed outside canvas, unaffected by pan/zoom */}
-      <ProjectDrawerDesktop project={selectedProject} onClose={() => setSelectedProjectId(null)} />
+      <ProjectDrawerDesktop project={selectedProject} onClose={() => setSelectedProjectId(null)} onDelete={deleteProject} />
     </>
   );
 }

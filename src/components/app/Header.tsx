@@ -29,8 +29,8 @@ export function Header({ onOpenShoppingList, shoppingItemCount, activeView, onVi
 
   return (
     <header className="mb-6">
-      <div className="flex justify-between items-center text-sm text-muted-foreground">
-        <span>{dateTime}</span>
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <span className="whitespace-nowrap">{dateTime}</span>
         <div className="flex items-center gap-2">
           {/* View toggle */}
           <div className="flex items-center rounded-md border border-border overflow-hidden">
