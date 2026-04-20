@@ -78,7 +78,7 @@ export function ProjectDrawer({ project, onClose }: ProjectDrawerProps) {
 export function ProjectDrawerDesktop({ project, onClose }: ProjectDrawerProps) {
   if (!project) return null;
   return (
-    <div className="absolute top-4 right-4 bottom-4 w-72 z-10 bg-card border rounded-xl shadow-sm overflow-hidden flex flex-col">
+    <div className="hidden md:flex fixed top-4 right-4 bottom-4 w-72 z-50 bg-card border rounded-xl shadow-sm overflow-hidden flex-col">
       <DrawerContent project={project} onClose={onClose} />
     </div>
   );

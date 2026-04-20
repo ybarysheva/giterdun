@@ -10,19 +10,32 @@ interface ProjectCardProps {
   zoom: number;
   onPositionChange: (id: string, x: number, y: number) => void;
   onOpen: (id: string) => void;
+  onPointerBegin?: () => void; // fires immediately on any press — pauses panzoom
+  onPointerFinish?: () => void; // fires when press ends — resumes panzoom
   onDragStart?: () => void;
   onDragEnd?: () => void;
+  // legacy touch names kept for CanvasView compat
+  onTouchBegin?: () => void;
+  onTouchFinish?: () => void;
 }
 
 const LONG_PRESS_MS = 500;
-const DRAG_THRESHOLD = 5; // px — below this = click, above = drag
+const DRAG_THRESHOLD = 5;
 
-export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragStart, onDragEnd }: ProjectCardProps) {
+export function ProjectCard({
+  project, zoom, onPositionChange, onOpen,
+  onPointerBegin, onPointerFinish,
+  onTouchBegin, onTouchFinish,
+  onDragStart, onDragEnd,
+}: ProjectCardProps) {
   const posRef = useRef({ x: project.canvasPositionX, y: project.canvasPositionY });
   const cardRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  // ── Mouse: click vs drag (desktop) ────────────────────────────────────────
+  const beginPause = onPointerBegin ?? onTouchBegin;
+  const finishResume = onPointerFinish ?? onTouchFinish;
+
+  // ── Mouse (desktop) ────────────────────────────────────────────────────────
   const mouseDownPos = useRef({ x: 0, y: 0 });
   const hasDragged = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
@@ -30,6 +43,7 @@ export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragSta
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
+      beginPause?.(); // pause panzoom immediately so it doesn't also pan
       hasDragged.current = false;
       mouseDownPos.current = { x: e.clientX, y: e.clientY };
       lastMouse.current = { x: e.clientX, y: e.clientY };
@@ -61,6 +75,7 @@ export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragSta
         }
         setDragging(false);
         hasDragged.current = false;
+        finishResume?.(); // resume panzoom when mouse released
         window.removeEventListener('mousemove', onMove);
         window.removeEventListener('mouseup', onUp);
       };
@@ -68,16 +83,17 @@ export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragSta
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [zoom, onPositionChange, project.id]
+    [zoom, onPositionChange, project.id, beginPause, finishResume, onDragStart, onDragEnd]
   );
 
-  // ── Touch: tap vs long press + drag (mobile) ──────────────────────────────
+  // ── Touch (mobile) ─────────────────────────────────────────────────────────
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchDragActive = useRef(false);
   const touchStart = useRef({ x: 0, y: 0 });
   const lastTouch = useRef({ x: 0, y: 0 });
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    beginPause?.(); // pause panzoom before it can capture this touch
     const touch = e.touches[0];
     touchStart.current = { x: touch.clientX, y: touch.clientY };
     lastTouch.current = { x: touch.clientX, y: touch.clientY };
@@ -89,7 +105,7 @@ export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragSta
       onDragStart?.();
       if (navigator.vibrate) navigator.vibrate(40);
     }, LONG_PRESS_MS);
-  }, [onDragStart]);
+  }, [beginPause, onDragStart]);
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
@@ -125,11 +141,13 @@ export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragSta
     }
     touchDragActive.current = false;
     setDragging(false);
-  }, [onPositionChange, project.id, onDragEnd]);
+    finishResume?.(); // resume panzoom when finger lifts
+  }, [onPositionChange, project.id, onDragEnd, finishResume]);
 
   return (
     <div
       ref={cardRef}
+      data-project-card
       onMouseDown={handleMouseDown}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -153,10 +171,15 @@ export function ProjectCard({ project, zoom, onPositionChange, onOpen, onDragSta
             e.stopPropagation();
             onOpen(project.id);
           }}
-          onMouseDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
+          onMouseDown={(e) => {
+            e.stopPropagation(); // don't trigger card's handleMouseDown
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation(); // don't trigger card's handleTouchStart
+          }}
           className="flex-shrink-0 p-1 rounded hover:bg-muted transition-colors cursor-pointer"
           aria-label="View project details"
+          style={{ touchAction: 'manipulation' }}
         >
           <Info className="h-4 w-4 text-muted-foreground hover:text-foreground" />
         </button>

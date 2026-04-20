@@ -48,7 +48,6 @@ export function CanvasView({
       initialZoom: 1,
     });
 
-    // Disable panning when dragging a card
     pz.on('beforeWheel', (e: any) => {
       if (isDraggingCardRef.current) {
         e.preventDefault();
@@ -69,62 +68,72 @@ export function CanvasView({
     };
   }, []);
 
+  // Called immediately when finger touches a card — pause panzoom before it can pan
+  const handleCardTouchBegin = useCallback(() => {
+    panzoomRef.current?.pause();
+  }, []);
+
+  // Called when finger lifts off a card — always resume panzoom
+  const handleCardTouchFinish = useCallback(() => {
+    isDraggingCardRef.current = false;
+    panzoomRef.current?.resume();
+  }, []);
+
   const handleCardDragStart = useCallback(() => {
     isDraggingCardRef.current = true;
-    if (panzoomRef.current) {
-      panzoomRef.current.pause();
-    }
+    // panzoom already paused by handleCardTouchBegin
   }, []);
 
   const handleCardDragEnd = useCallback(() => {
-    isDraggingCardRef.current = false;
-    if (panzoomRef.current) {
-      panzoomRef.current.resume();
-    }
+    // isDraggingCardRef and panzoom resume handled by handleCardTouchFinish
   }, []);
 
   return (
-    <div
-      ref={canvasRef}
-      className="fixed inset-0 overflow-hidden bg-muted/20 select-none"
-      style={{ overscrollBehavior: 'none' }}
-    >
-      {/* Transformable surface (controlled by panzoom) */}
+    <>
       <div
-        ref={surfaceRef}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'absolute',
-        }}
+        ref={canvasRef}
+        className="fixed inset-0 overflow-hidden bg-muted/20 select-none"
+        style={{ overscrollBehavior: 'none' }}
       >
-        {projects.map((project) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            zoom={1}
-            onPositionChange={updateProjectPosition}
-            onOpen={setSelectedProjectId}
-            onDragStart={handleCardDragStart}
-            onDragEnd={handleCardDragEnd}
-          />
-        ))}
+        {/* Transformable surface (controlled by panzoom) */}
+        <div
+          ref={surfaceRef}
+          style={{
+            width: '100%',
+            height: '100%',
+            position: 'absolute',
+          }}
+        >
+          {projects.map((project) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              zoom={1}
+              onPositionChange={updateProjectPosition}
+              onOpen={setSelectedProjectId}
+              onPointerBegin={handleCardTouchBegin}
+              onPointerFinish={handleCardTouchFinish}
+              onDragStart={handleCardDragStart}
+              onDragEnd={handleCardDragEnd}
+            />
+          ))}
+        </div>
+
+        {/* Empty state */}
+        {projects.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <p className="text-sm text-muted-foreground/50 select-none">
+              Your projects will live here — drag to pan, scroll to zoom
+            </p>
+          </div>
+        )}
+
+        {/* Mobile bottom sheet */}
+        <ProjectDrawer project={selectedProject} onClose={() => setSelectedProjectId(null)} />
       </div>
 
-      {/* Empty state */}
-      {projects.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <p className="text-sm text-muted-foreground/50 select-none">
-            Your projects will live here — drag to pan, scroll to zoom
-          </p>
-        </div>
-      )}
-
-      {/* Desktop drawer — inside canvas, not affected by pan/zoom */}
+      {/* Desktop drawer — fixed outside canvas, unaffected by pan/zoom */}
       <ProjectDrawerDesktop project={selectedProject} onClose={() => setSelectedProjectId(null)} />
-
-      {/* Mobile bottom sheet — rendered at root level */}
-      <ProjectDrawer project={selectedProject} onClose={() => setSelectedProjectId(null)} />
-    </div>
+    </>
   );
 }

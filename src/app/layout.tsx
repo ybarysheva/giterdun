@@ -4,7 +4,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 
 export const metadata: Metadata = {
-  title: 'Pick For Me',
+  title: 'Giterdun',
   description: 'A calm, minimal to-do app for today.',
 };
 

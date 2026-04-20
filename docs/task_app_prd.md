@@ -4,7 +4,7 @@
 
 A calm, minimal task management app designed to help users focus on what to work on today.
 
-Users add tasks for the day, optionally estimate effort, and let the app (or an AI) suggest what to tackle first based on their current energy level.
+Users add tasks for the day, optionally estimate effort, and work through their list at their own pace.
 
 The app has two primary interfaces:
 
@@ -125,29 +125,13 @@ Classification happens asynchronously and does not block task creation.
 
 `effortSource` is set to `"ai"` when classified automatically, `"user"` when set manually.
 
-## Sorting
-
-Three sort modes available in the header:
-
-| Mode | Behavior |
-|------|----------|
-| Pick for Me | AI scoring based on energy level, effort, flag, and recency |
-| Easy First | Sort by effort (XS → S → M → L) |
-| Custom | Original creation order |
-
-## Energy Level
-
-Users set their current energy level (low / med / high) in the header. This influences the "Pick for Me" sort — high energy surfaces larger tasks, low energy surfaces quick wins.
-
 ---
 
 # Views
 
 ## List View
 
-Primary interface. Shows today's tasks with sort controls and energy selector in the header.
-
-The first task in "Pick for Me" mode is highlighted as the recommended next action.
+Primary interface. Shows today's tasks in the order they were created.
 
 ## Task Detail Panel
 
@@ -234,8 +218,18 @@ All task queries are scoped by `userId` via Firestore security rules.
 | AI effort classification | ✅ done |
 | Flag / priority | ✅ done |
 | Carryover tasks | ✅ done |
-| Energy level | ✅ done |
-| Sort modes (custom / easy / AI) | ✅ done |
 | Task detail panel (desktop + mobile) | ✅ done |
 | Subtask UI | ⬜ planned |
 | Canvas view | ⬜ planned |
+
+---
+
+# Removed Features
+
+These were designed and partially built but cut from the product.
+
+| Feature | Why Removed |
+|---------|-------------|
+| **Sort modes** (Easy First, Custom, AI-ranked) | Removed from UI — task order is now fixed to creation order |
+| **Energy level selector** (low / med / high) | Tied to AI sort; removed along with sorting |
+| **AI-recommended next task** | First task was highlighted in "Giterdun" sort mode; no longer applicable without sort |
