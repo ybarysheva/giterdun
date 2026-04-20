@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { doc, getDoc, arrayUnion, collection, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, arrayUnion, collection, Timestamp } from 'firebase/firestore';
 import { useFirebase, useUser, useMemoFirebase } from '@/firebase';
 import { Task } from '@/lib/types';
 import { getToday } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { subDays } from 'date-fns';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 
 // Raw type from Firestore before timestamp normalization
@@ -38,7 +37,6 @@ export function useFirestoreTasks() {
   const [loading, setLoading] = useState(true);
 
   const today = getToday();
-  const yesterday = getToday(subDays(new Date(), 1));
 
   const userListsCollection = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -55,8 +53,10 @@ export function useFirestoreTasks() {
       setLoading(true);
       try {
         const todayRef = doc(userListsCollection, today);
-        const yesterdayRef = doc(userListsCollection, yesterday);
-        const [todaySnap, yesterdaySnap] = await Promise.all([getDoc(todayRef), getDoc(yesterdayRef)]);
+        const [todaySnap, allSnaps] = await Promise.all([
+          getDoc(todayRef),
+          getDocs(userListsCollection),
+        ]);
 
         let todaysTasks: Task[] = [];
         if (todaySnap.exists()) {
@@ -73,19 +73,36 @@ export function useFirestoreTasks() {
           setDocumentNonBlocking(todayRef, { date: today, tasks: [] }, { merge: false });
         }
 
-        if (yesterdaySnap.exists()) {
-          const carryovers = (yesterdaySnap.data().tasks || [])
+        // Collect all incomplete tasks from every past day, deduped by task ID
+        // (a task carried forward multiple times keeps only its most recent version)
+        const allCarryovers = new Map<string, Task>();
+        allSnaps.forEach(snap => {
+          if (snap.id === today) return;
+          (snap.data().tasks || [])
             .filter((t: RawTask) => t.status === 'todo')
-            .map((t: RawTask) => ({
-              ...t,
-              isCarryover: true,
-              originDate: t.originDate ?? t.listDate,
-              createdAt: normalizeTimestamp(t.createdAt) ?? Date.now(),
-            }))
-            .filter((ct: Task) => !todaysTasks.some(tt => tt.id === ct.id && tt.listDate === today));
-          setCarryoverTasks(carryovers);
-        }
+            .forEach((t: RawTask) => {
+              const normalized: Task = {
+                ...t,
+                id: t.id || crypto.randomUUID(),
+                effort: t.effort ?? null,
+                isCarryover: true,
+                originDate: t.originDate ?? t.listDate,
+                createdAt: normalizeTimestamp(t.createdAt) ?? Date.now(),
+                completedAt: normalizeTimestamp(t.completedAt),
+              };
+              const existing = allCarryovers.get(normalized.id);
+              if (!existing || normalized.listDate > existing.listDate) {
+                allCarryovers.set(normalized.id, normalized);
+              }
+            });
+        });
 
+        // Remove any already pulled into today's list, sort most recent first
+        const carryovers = Array.from(allCarryovers.values())
+          .filter(ct => !todaysTasks.some(tt => tt.id === ct.id))
+          .sort((a, b) => b.listDate.localeCompare(a.listDate));
+
+        setCarryoverTasks(carryovers);
         setTasks(todaysTasks);
       } catch (error: unknown) {
         console.error('Error loading data:', error);
@@ -96,7 +113,7 @@ export function useFirestoreTasks() {
     };
 
     loadData();
-  }, [isUserLoading, firestore, user, userListsCollection, today, yesterday, toast]);
+  }, [isUserLoading, firestore, user, userListsCollection, today, toast]);
 
   const addTask = useCallback((newTaskData: Omit<Task, 'id' | 'listDate' | 'isCarryover' | 'createdAt' | 'status' | 'originDate'>) => {
     if (!userListsCollection) return;
